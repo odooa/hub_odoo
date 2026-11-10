@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hub_dossier_view_list" model="ir.ui.view">
+        <field name="name">hub.dossier.list</field>
+        <field name="model">hub.dossier</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="code"/>
+                <field name="name"/>
+                <field name="partner_id" optional="show"/>
+                <field name="profil_activite" optional="show"/>
+                <field name="statut" widget="badge"
+                       decoration-success="statut == 'actif'"
+                       decoration-warning="statut == 'en_reprise'"
+                       decoration-danger="statut == 'suspendu'"/>
+                <field name="comptable_ids" widget="many2many_avatar_user" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="hub_dossier_view_form" model="ir.ui.view">
+        <field name="name">hub.dossier.form</field>
+        <field name="model">hub.dossier</field>
+        <field name="arch" type="xml">
+            <form>
+                <header>
+                    <field name="statut" widget="statusbar" options="{'clickable': '1'}"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_voir_faits" type="object"
+                                class="oe_stat_button" icon="fa-list-ul">
+                            <field name="fait_count" widget="statinfo" string="Faits"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Archivé" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Nom du dossier"/></h1>
+                    </div>
+                    <group>
+                        <group name="identification" string="Identification">
+                            <field name="code"/>
+                            <field name="partner_id"/>
+                            <field name="profil_activite"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group name="odoo_client" string="Odoo client">
+                            <field name="odoo_url" widget="url"/>
+                            <field name="odoo_base"/>
+                            <field name="odoo_version"/>
+                            <field name="cle_api_definie" invisible="1"/>
+                            <label for="cle_api_date" string="Clé API"/>
+                            <div class="o_row">
+                                <span invisible="cle_api_definie" class="text-muted">
+                                    Aucune clé définie
+                                </span>
+                                <span invisible="not cle_api_definie">
+                                    Définie le <field name="cle_api_date" class="oe_inline"/>
+                                    par <field name="cle_api_user_id" class="oe_inline"
+                                               options="{'no_open': True}"/>
+                                </span>
+                                <button name="action_ouvrir_cle_wizard" type="object"
+                                        string="Définir la clé" class="btn-link"
+                                        icon="fa-key" invisible="cle_api_definie"
+                                        groups="appalach_hub.group_hub_gestionnaire"/>
+                                <button name="action_ouvrir_cle_wizard" type="object"
+                                        string="Remplacer" class="btn-link"
+                                        icon="fa-key" invisible="not cle_api_definie"
+                                        groups="appalach_hub.group_hub_gestionnaire"/>
+                            </div>
+                        </group>
+                        <group name="fichiers" string="Fichiers">
+                            <field name="nextcloud_path"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page name="faits" string="Faits">
+                            <field name="fait_ids" context="{'default_dossier_id': id}">
+                                <list editable="bottom">
+                                    <field name="cle"/>
+                                    <field name="type_valeur"/>
+                                    <field name="valeur"/>
+                                    <field name="note"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page name="taches" string="Tâches">
+                            <group>
+                                <field name="tache_reprise"/>
+                                <field name="tache_tva"/>
+                                <field name="tache_controle_factures"/>
+                                <field name="tache_lettrage"/>
+                                <field name="tache_od_salaires"/>
+                            </group>
+                        </page>
+                        <page name="equipe" string="Équipe">
+                            <group>
+                                <field name="comptable_ids" widget="many2many_tags_avatar"/>
+                                <field name="contact_ids" widget="many2many_tags"/>
+                            </group>
+                        </page>
+                        <page name="notes" string="Notes">
+                            <field name="note"/>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="hub_dossier_view_search" model="ir.ui.view">
+        <field name="name">hub.dossier.search</field>
+        <field name="model">hub.dossier</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name" filter_domain="['|', ('name', 'ilike', self), ('code', 'ilike', self)]"/>
+                <field name="partner_id"/>
+                <field name="comptable_ids"/>
+                <filter name="mes_dossiers" string="Mes dossiers"
+                        domain="[('comptable_ids', 'in', uid)]"/>
+                <separator/>
+                <filter name="actif" string="Actifs" domain="[('statut', '=', 'actif')]"/>
+                <filter name="suspendu" string="Suspendus" domain="[('statut', '=', 'suspendu')]"/>
+                <filter name="en_reprise" string="En reprise" domain="[('statut', '=', 'en_reprise')]"/>
+                <separator/>
+                <filter name="archive" string="Archivés" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_statut" string="Statut" context="{'group_by': 'statut'}"/>
+                    <filter name="group_profil" string="Profil d'activité"
+                            context="{'group_by': 'profil_activite'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="hub_dossier_action" model="ir.actions.act_window">
+        <field name="name">Dossiers</field>
+        <field name="res_model">hub.dossier</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Créer un premier dossier client</p>
+        </field>
+    </record>
+</odoo>

@@ -1,0 +1,21 @@
+{
+    "name": "Hub comptable Appalach",
+    "summary": "Dossiers clients, faits et configuration du moteur comptable",
+    "version": "20.0.1.0.0",
+    "category": "Accounting",
+    "author": "Appalach",
+    "website": "https://www.appalach.be",
+    "license": "LGPL-3",
+    "depends": ["base", "mail"],
+    "external_dependencies": {"python": ["cryptography", "requests"]},
+    "data": [
+        "security/hub_security.xml",
+        "security/ir.model.access.csv",
+        "views/hub_dossier_views.xml",
+        "views/hub_fait_views.xml",
+        "wizard/hub_dossier_cle_wizard_views.xml",
+        "views/hub_menus.xml",
+    ],
+    "application": True,
+    "installable": True,
+}

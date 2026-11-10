@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <menuitem id="hub_menu_root" name="Hub compta" sequence="40"
+              groups="appalach_hub.group_hub_comptable"/>
+    <menuitem id="hub_menu_dossier" name="Dossiers" parent="hub_menu_root"
+              action="hub_dossier_action" sequence="10"/>
+    <menuitem id="hub_menu_fait" name="Faits" parent="hub_menu_root"
+              action="hub_fait_action" sequence="20"/>
+</odoo>
