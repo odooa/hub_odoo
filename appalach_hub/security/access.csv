@@ -1,8 +1,0 @@
-id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
-access_hub_dossier_comptable,hub.dossier comptable,model_hub_dossier,group_hub_comptable,1,1,0,0
-access_hub_dossier_gestionnaire,hub.dossier gestionnaire,model_hub_dossier,group_hub_gestionnaire,1,1,1,1
-access_hub_dossier_moteur,hub.dossier moteur,model_hub_dossier,group_hub_moteur,1,0,0,0
-access_hub_fait_comptable,hub.fait comptable,model_hub_fait,group_hub_comptable,1,1,1,1
-access_hub_fait_gestionnaire,hub.fait gestionnaire,model_hub_fait,group_hub_gestionnaire,1,1,1,1
-access_hub_fait_moteur,hub.fait moteur,model_hub_fait,group_hub_moteur,1,0,0,0
-access_hub_dossier_cle_wizard_gestionnaire,hub.dossier.cle.wizard gestionnaire,model_hub_dossier_cle_wizard,group_hub_gestionnaire,1,1,1,0

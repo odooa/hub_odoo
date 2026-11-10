@@ -10,7 +10,7 @@
     "external_dependencies": {"python": ["cryptography", "requests"]},
     "data": [
         "security/hub_security.xml",
-        "security/access.csv",
+        "security/ir.access.csv",
         "views/hub_dossier_views.xml",
         "views/hub_fait_views.xml",
         "wizard/hub_dossier_cle_wizard_views.xml",

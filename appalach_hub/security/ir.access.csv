@@ -1,0 +1,9 @@
+id,name,model_id,group_id/id,operation,domain
+access_hub_dossier_comptable,hub.dossier comptable,hub.dossier,appalach_hub.group_hub_comptable,ru,
+access_hub_dossier_gestionnaire,hub.dossier gestionnaire,hub.dossier,appalach_hub.group_hub_gestionnaire,crud,
+access_hub_dossier_moteur,hub.dossier moteur,hub.dossier,appalach_hub.group_hub_moteur,r,
+access_hub_fait_comptable,hub.fait comptable,hub.fait,appalach_hub.group_hub_comptable,crud,
+access_hub_fait_gestionnaire,hub.fait gestionnaire,hub.fait,appalach_hub.group_hub_gestionnaire,crud,
+access_hub_fait_moteur,hub.fait moteur,hub.fait,appalach_hub.group_hub_moteur,r,
+access_hub_dossier_cle_wizard_gestionnaire,hub.dossier.cle.wizard gestionnaire,hub.dossier.cle.wizard,appalach_hub.group_hub_gestionnaire,cru,
+hub_dossier_cle_wizard_own,hub.dossier.cle.wizard : ses propres assistants,hub.dossier.cle.wizard,,ru,"[('create_uid', '=', user.id)]"

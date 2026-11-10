@@ -11,8 +11,25 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
 - Module principal : `appalach_hub` (dépendances : `base`, `mail` ; `portal` plus tard pour
   les pages de réponse à jeton).
 
-## Conventions Odoo récentes (17+) à respecter
+## Source de référence
 
+- **Source Odoo 20 locale : `~/odoo/odoo20`** (clone de la branche `20.0`). Toute convention
+  se vérifie sur un module standard de cette source (ex. `mail`, `project`), pas sur la 19.
+- Le Postgres local (14) est trop ancien pour Odoo 20 (≥ 16 requis) : tests sur le VPS ou
+  dans un Postgres 16 jetable.
+
+## Conventions Odoo 20 à respecter
+
+- **Droits d'accès : `security/ir.access.csv`** (modèle `ir.access`, `ir.model.access` et
+  `ir.rule` n'existent plus). Le nom du fichier détermine le modèle chargé. Colonnes :
+  `id,name,model_id,group_id/id,operation,domain` ; `model_id` = nom technique du modèle
+  (`hub.dossier`) ; `operation` = sous-ensemble de `crud` (ex. `ru`) ; `domain` vide = tous
+  les enregistrements. Avec un groupe : **permission** ; sans groupe : **restriction**
+  (remplace les règles d'enregistrement globales).
+- Groupes : `res.groups` avec `privilege_id` → `res.groups.privilege` (→ `category_id`
+  `ir.module.category`), `implied_ids`, `user_ids` (plus `users`). Utilisateurs :
+  `group_ids` / `all_group_ids`.
+- Contraintes SQL : attributs `models.Constraint(...)` (plus `_sql_constraints`).
 - Vues liste : balise `<list>` (pas `<tree>`), `view_mode` = `list,form`.
 - Pas d'attribut `attrs` ni `states` : utiliser `invisible=`, `readonly=`, `required=`
   avec des expressions Python.
@@ -42,7 +59,7 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
 ## Sécurité
 
 - Groupes : « Hub / Comptable » (voit et modifie les dossiers dont il est comptable,
-  via règles d'enregistrement) et « Hub / Gestionnaire » (tout).
+  via un domaine dans `ir.access.csv`) et « Hub / Gestionnaire » (tout).
 - Un utilisateur technique « moteur » accède par API (clé API), droits limités au nécessaire
   (groupe technique « Hub / Moteur »).
 - Clé API de l'Odoo d'un dossier : **écriture seule**, jamais stockée ni relisible en clair.
