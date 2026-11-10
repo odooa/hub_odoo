@@ -97,6 +97,11 @@ class HubDossier(models.Model):
         "Journal des OD de salaires", tracking=True,
         help="Code du journal général mémorisé lors de la dernière OD de salaires.",
     )
+    anonymiser_historique = fields.Boolean(
+        "Anonymiser les libellés de l'historique", default=False, tracking=True,
+        help="OD de salaires : n'envoyer à Claude que le libellé du compte des lignes "
+             "d'historique, pas le libellé de ligne (qui peut contenir des noms de travailleurs).",
+    )
     mapping_ids = fields.One2many("hub.mapping", "dossier_id", "Mappings")
     fait_ids = fields.One2many("hub.fait", "dossier_id", "Faits")
     fait_count = fields.Integer("Nombre de faits", compute="_compute_fait_count")
@@ -210,14 +215,21 @@ class HubDossier(models.Model):
             dossier.cle_api_chiffree, dossier.cle_api_empreinte
         )
 
-    def _client_odoo(self):
-        """Client JSON-2 de l'Odoo du dossier."""
+    def _client_odoo(self, company_id=None):
+        """Client JSON-2 de l'Odoo du dossier, dans le contexte d'une société.
+
+        company_id : société déjà résolue (pas d'appel) ; sinon odoo_company_id du dossier,
+        sinon société de l'utilisateur API (lue dans l'Odoo du client).
+        """
         self.ensure_one()
         if not self.odoo_url or not self.odoo_base:
             raise UserError(_("URL ou base de l'Odoo du dossier non renseignée."))
-        return OdooJson2(
-            self.odoo_url, self.odoo_base, self._cle_api_en_clair(), self.odoo_company_id or None
-        )
+        client = OdooJson2(self.odoo_url, self.odoo_base, self._cle_api_en_clair())
+        if company_id:
+            client.utiliser_societe(company_id)
+        else:
+            client.fixer_societe(self.odoo_company_id or None)
+        return client
 
     # ------------------------------------------------------------------
     # Traces et OD de salaires

@@ -33,6 +33,9 @@
                             <field name="secretariat"/>
                             <field name="pdf_nom" string="PDF" readonly="1"/>
                             <field name="modele"/>
+                            <field name="societe_client_nom"/>
+                            <field name="historique_nb"/>
+                            <field name="historique_periode" invisible="not historique_nb"/>
                         </group>
                         <group string="Totaux du récapitulatif">
                             <field name="total_brut"/>
@@ -44,10 +47,11 @@
                     <group invisible="etape != 'revue'">
                         <field name="journal_ids" invisible="1"/>
                         <field name="compte_ids" invisible="1"/>
-                        <field name="journal_id" options="{'no_create': True, 'no_open': True}"
+                        <field name="journal_id" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"
                                required="etape == 'revue'"/>
-                        <field name="memoriser_mapping"/>
                     </group>
+                    <field name="avertissements_html" readonly="1"
+                           invisible="etape != 'revue' or not avertissements_html"/>
                     <field name="ligne_ids" readonly="etape != 'revue'">
                         <list editable="bottom" create="0" delete="0">
                             <field name="sequence" widget="handle"/>
@@ -55,11 +59,14 @@
                             <field name="sens" readonly="1"/>
                             <field name="categorie"/>
                             <field name="montant" readonly="1" sum="Total"/>
-                            <field name="compte_id" options="{'no_create': True, 'no_open': True}"
+                            <field name="compte_id" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"
                                    domain="[('wizard_id', '=', parent.id)]"/>
+                            <field name="compte_sans_code" optional="hide"/>
                             <field name="origine" widget="badge" readonly="1"
-                                   decoration-info="origine == 'mapping'"
-                                   decoration-warning="origine == 'claude'"/>
+                                   decoration-success="origine == 'mapping'"
+                                   decoration-info="origine == 'historique'"
+                                   decoration-warning="origine == 'pcmn'"
+                                   decoration-muted="origine == 'manuel'"/>
                             <field name="justification" readonly="1" optional="show"/>
                         </list>
                     </field>

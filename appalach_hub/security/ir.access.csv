@@ -7,8 +7,8 @@ access_hub_fait_gestionnaire,hub.fait gestionnaire,hub.fait,appalach_hub.group_h
 access_hub_fait_moteur,hub.fait moteur,hub.fait,appalach_hub.group_hub_moteur,r,
 access_hub_dossier_cle_wizard_gestionnaire,hub.dossier.cle.wizard gestionnaire,hub.dossier.cle.wizard,appalach_hub.group_hub_gestionnaire,cru,
 hub_dossier_cle_wizard_own,hub.dossier.cle.wizard : ses propres assistants,hub.dossier.cle.wizard,,ru,"[('create_uid', '=', user.id)]"
-access_hub_mapping_comptable,hub.mapping comptable,hub.mapping,appalach_hub.group_hub_comptable,crud,
-access_hub_mapping_gestionnaire,hub.mapping gestionnaire,hub.mapping,appalach_hub.group_hub_gestionnaire,crud,
+access_hub_mapping_comptable,hub.mapping comptable,hub.mapping,appalach_hub.group_hub_comptable,rud,
+access_hub_mapping_gestionnaire,hub.mapping gestionnaire,hub.mapping,appalach_hub.group_hub_gestionnaire,rud,
 access_hub_mapping_moteur,hub.mapping moteur,hub.mapping,appalach_hub.group_hub_moteur,r,
 access_hub_od_salaires_wizard_comptable,hub.od.salaires.wizard comptable,hub.od.salaires.wizard,appalach_hub.group_hub_comptable,cru,
 access_hub_od_salaires_ligne_comptable,hub.od.salaires.ligne comptable,hub.od.salaires.ligne,appalach_hub.group_hub_comptable,crud,

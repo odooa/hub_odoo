@@ -4,10 +4,10 @@
         <field name="name">hub.mapping.list</field>
         <field name="model">hub.mapping</field>
         <field name="arch" type="xml">
-            <list>
-                <field name="dossier_id"/>
-                <field name="tache"/>
-                <field name="libelle"/>
+            <list create="0" editable="bottom">
+                <field name="dossier_id" readonly="1"/>
+                <field name="tache" readonly="1"/>
+                <field name="libelle" readonly="1"/>
                 <field name="compte_code"/>
                 <field name="compte_libelle"/>
             </list>
@@ -18,15 +18,15 @@
         <field name="name">hub.mapping.form</field>
         <field name="model">hub.mapping</field>
         <field name="arch" type="xml">
-            <form>
+            <form create="0">
                 <sheet>
                     <widget name="web_ribbon" title="Archivé" bg_color="text-bg-danger"
                             invisible="active"/>
                     <group>
                         <group>
-                            <field name="dossier_id"/>
-                            <field name="tache"/>
-                            <field name="libelle"/>
+                            <field name="dossier_id" readonly="1"/>
+                            <field name="tache" readonly="1"/>
+                            <field name="libelle" readonly="1"/>
                             <field name="active" invisible="1"/>
                         </group>
                         <group>
@@ -63,7 +63,8 @@
         <field name="view_mode">list,form</field>
         <field name="help" type="html">
             <p class="o_view_nocontent_smiling_face">Aucun mapping</p>
-            <p>Les mappings sont créés en validant une OD de salaires depuis un dossier.</p>
+            <p>Les mappings sont alimentés automatiquement à la création d'une OD de salaires.
+               Ici, on les consulte et on corrige le compte si nécessaire.</p>
         </field>
     </record>
 </odoo>

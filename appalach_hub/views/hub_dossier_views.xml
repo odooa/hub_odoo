@@ -98,13 +98,15 @@
                                 <field name="tache_od_salaires"/>
                                 <field name="od_salaires_journal"
                                        invisible="not tache_od_salaires"/>
+                                <field name="anonymiser_historique"
+                                       invisible="not tache_od_salaires"/>
                             </group>
                         </page>
                         <page name="mappings" string="Mappings">
-                            <field name="mapping_ids" context="{'default_dossier_id': id}">
-                                <list editable="bottom">
-                                    <field name="tache"/>
-                                    <field name="libelle"/>
+                            <field name="mapping_ids">
+                                <list editable="bottom" create="0">
+                                    <field name="tache" readonly="1"/>
+                                    <field name="libelle" readonly="1"/>
                                     <field name="compte_code"/>
                                     <field name="compte_libelle"/>
                                 </list>

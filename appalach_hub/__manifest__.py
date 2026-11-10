@@ -1,7 +1,7 @@
 {
     "name": "Hub comptable Appalach",
     "summary": "Dossiers clients, faits, mappings et OD de salaires",
-    "version": "20.0.1.1.0",
+    "version": "20.0.1.2.0",
     "category": "Accounting",
     "author": "Appalach",
     "website": "https://www.appalach.be",

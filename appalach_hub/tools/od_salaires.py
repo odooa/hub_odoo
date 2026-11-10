@@ -72,10 +72,14 @@ SCHEMA_PROPOSITIONS = {
                 "properties": {
                     "libelle": {"type": "string"},
                     "code_compte": {"type": "string"},
+                    "ecriture_reference": {
+                        "type": "string",
+                        "description": "Nom exact de l'écriture d'historique citée, vide si aucune",
+                    },
                     "justification": {"type": "string"},
                 },
                 "additionalProperties": False,
-                "required": ["libelle", "code_compte", "justification"],
+                "required": ["libelle", "code_compte", "ecriture_reference", "justification"],
             },
         },
     },
@@ -94,10 +98,27 @@ Si un total n'est pas imprimé, mets 0. Si un montant est illisible, ne le devin
 mets 0 et signale-le dans le libellé entre crochets.
 """
 
+MARQUEUR_SANS_CODE = "SANS-CODE-"
+
 CONSIGNE_MAPPING = """\
 Tu proposes l'imputation des rubriques d'une OD de salaires belge (PCMN) sur le plan
 comptable fourni. Pour chaque rubrique, choisis exactement un code présent dans la liste,
-avec une justification d'une phrase. N'invente aucun code.
+avec une justification d'une phrase. N'invente aucun code. Laisse ecriture_reference vide.
+"""
+
+CONSIGNE_HISTORIQUE = """\
+Tu proposes l'imputation des rubriques d'une OD de salaires belge sur le plan comptable du
+client, en t'appuyant d'abord sur ses OD de salaires déjà comptabilisées (historique
+ci-dessous).
+Pour chaque rubrique :
+- si une écriture de l'historique contient la rubrique équivalente, reprends le compte
+  utilisé, mets dans ecriture_reference le nom exact de cette écriture et cite-la avec sa
+  date dans la justification (ex. « comme OD/2026/0912 du 30/09/2026 ») ;
+- si le compte de l'historique est noté SANS-CODE-<id>, renvoie exactement ce marqueur
+  comme code_compte ;
+- sinon, propose un compte selon le PCMN belge parmi le plan fourni et laisse
+  ecriture_reference vide.
+N'invente aucun code ni aucun nom d'écriture.
 """
 
 
@@ -143,11 +164,55 @@ def contenu_extraction(pdf_b64):
     ]
 
 
-def contenu_mapping(rubriques, comptes):
-    """rubriques : dicts (libelle, sens, categorie) ; comptes : dicts (code, name, account_type)."""
+def construire_historique(ecritures, lignes, comptes_par_id, anonymiser=False):
+    """Assemble l'historique lu par JSON-2.
+
+    ecritures : dicts (id, name, ref, date) ; lignes : dicts (move_id [id, nom], account_id
+    [id, nom], name, debit, credit) ; comptes_par_id : {id: dict compte (code éventuellement
+    vide)}. anonymiser : remplace le libellé de ligne par le libellé du compte.
+    """
+    par_ecriture = {e["id"]: {"name": e["name"], "date": e["date"], "ref": e.get("ref") or "",
+                              "lignes": []} for e in ecritures}
+    for ligne in lignes:
+        ecriture = par_ecriture.get(ligne["move_id"][0] if ligne.get("move_id") else None)
+        if ecriture is None or not ligne.get("account_id"):
+            continue
+        compte_id = ligne["account_id"][0]
+        compte = comptes_par_id.get(compte_id) or {}
+        nom_compte = compte.get("name") or ligne["account_id"][1]
+        ecriture["lignes"].append({
+            "code": compte.get("code") or f"{MARQUEUR_SANS_CODE}{compte_id}",
+            "compte": nom_compte,
+            "libelle": nom_compte if anonymiser else (ligne.get("name") or nom_compte),
+            "debit": dec(ligne.get("debit")),
+            "credit": dec(ligne.get("credit")),
+        })
+    return [par_ecriture[e["id"]] for e in ecritures]
+
+
+def texte_historique(historique):
+    blocs = []
+    for ecriture in historique:
+        lignes = "\n".join(
+            f"  {l['code']} | {l['compte']} | {l['libelle']} | {euros(l['debit'])} | {euros(l['credit'])}"
+            for l in ecriture["lignes"]
+        )
+        blocs.append(f"Écriture {ecriture['name']} du {ecriture['date']} (réf. {ecriture['ref']}) :\n"
+                     f"  code | compte | libellé | débit | crédit\n{lignes}")
+    return "\n\n".join(blocs)
+
+
+def contenu_mapping(rubriques, comptes, historique=None):
+    """rubriques : dicts (libelle, sens, categorie) ; comptes : dicts (code, name, account_type) ;
+    historique : sortie de construire_historique (vide : proposition PCMN générique)."""
     plan = "\n".join(f"{c['code']}\t{c['name']}\t{c.get('account_type') or ''}" for c in comptes)
     liste = "\n".join(f"- {r['libelle']} ({r['sens']}, {r['categorie']})" for r in rubriques)
-    texte = f"{CONSIGNE_MAPPING}\nRubriques :\n{liste}\n\nPlan comptable (code, nom, type) :\n{plan}"
+    if historique:
+        texte = (f"{CONSIGNE_HISTORIQUE}\nRubriques :\n{liste}\n\n"
+                 f"Historique des OD de salaires :\n{texte_historique(historique)}\n\n"
+                 f"Plan comptable (code, nom, type) :\n{plan}")
+    else:
+        texte = f"{CONSIGNE_MAPPING}\nRubriques :\n{liste}\n\nPlan comptable (code, nom, type) :\n{plan}"
     return [{"type": "text", "text": texte}]
 
 

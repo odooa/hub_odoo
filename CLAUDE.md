@@ -65,6 +65,8 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
 5. `hub.run` (+ étapes, actions) : exécutions du moteur, alimentées par l'API.
 6. `hub.mapping` : libellé de rubrique → code et libellé de compte de l'Odoo client, par
    dossier et par tâche (`od_salaires` pour l'instant). Unicité sur le libellé normalisé.
+   Alimenté **uniquement** par la création d'une OD (en sudo) ; le menu sert à consulter et
+   corriger (compte, archivage), jamais à saisir (droits `rud`, `create="0"`).
 
 ## OD de salaires dans le hub (POC)
 
@@ -75,6 +77,17 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
 - Appels HTTP par `requests` uniquement (aucun SDK dans le conteneur) : API Claude
   (`anthropic-version` = valeur du SDK Python officiel, vérifiée dans sa source), Nextcloud
   WebDAV, JSON-2 de l'Odoo client. Pas de repli automatique si Claude refuse.
+- Propositions de comptes, dans cet ordre (origine affichée par ligne) : `mapping` validé →
+  `historique` (Claude s'appuie sur les 6 dernières OD de salaires comptabilisées du client
+  et cite l'écriture de référence, vérifiée) → `pcmn` (proposition générique) ; `manuel` si
+  l'utilisateur change le compte. Option du dossier « anonymiser les libellés de
+  l'historique » (désactivée par défaut) : seul le libellé du compte est envoyé.
+- Toutes les lectures dans l'Odoo client se font dans le contexte d'une société
+  (`odoo_company_id` du dossier, sinon société de l'utilisateur API via `context_get` +
+  `res.users/read`) : `account.account.code` dépend de la société. Comptes sans code ignorés
+  et signalés ; bloquant seulement si une rubrique en a besoin.
+- Les copies temporaires des comptes et journaux du client ne se créent que depuis le code de
+  l'assistant (création rapide refusée côté vues et côté serveur).
 - Chaque exécution (extraction, création, échec) est tracée dans le chatter du dossier, sans
   secret ni détail de paie ; le PDF n'est pas conservé dans le hub.
 - Logique reprise de `hub_compta/prototypes/od_salaires.py`, conservé comme référence.

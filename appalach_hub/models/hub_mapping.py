@@ -1,4 +1,5 @@
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 from ..tools.od_salaires import normaliser
 
@@ -29,6 +30,15 @@ class HubMapping(models.Model):
         "Ce libellé de rubrique a déjà un mapping pour ce dossier et cette tâche.",
     )
 
+    _CHAMPS_FIGES = {"dossier_id", "tache", "libelle"}
+
+    def write(self, vals):
+        # Consultation et correction seulement : le compte et l'archivage sont modifiables ;
+        # le reste est fixé à la création (alimentée par l'OD, en sudo).
+        if not self.env.su and self._CHAMPS_FIGES & set(vals):
+            raise UserError(_("Seuls le compte et l'archivage d'un mapping sont modifiables."))
+        return super().write(vals)
+
     @api.depends("libelle")
     def _compute_libelle_normalise(self):
         for mapping in self:
@@ -42,7 +52,12 @@ class HubMapping(models.Model):
 
     @api.model
     def _memoriser(self, dossier, tache, libelle, code, nom_compte):
-        """Crée ou met à jour le mapping (un mapping archivé est réactivé)."""
+        """Crée ou met à jour le mapping (un mapping archivé est réactivé).
+
+        Seule voie de création : en sudo, après vérification de l'accès au dossier.
+        """
+        dossier.check_access("read")
+        self = self.sudo()
         cle = normaliser(libelle)
         existant = self.with_context(active_test=False).search([
             ("dossier_id", "=", dossier.id), ("tache", "=", tache), ("libelle_normalise", "=", cle),

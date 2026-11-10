@@ -119,7 +119,8 @@ class TestNextcloud(BaseCase):
 @tagged("post_install", "-at_install")
 class TestOdooJson2(BaseCase):
     def test_appel_et_erreur(self):
-        client = OdooJson2("https://client.invalid/", "base", "cle-secrete", company_id=3)
+        client = OdooJson2("https://client.invalid/", "base", "cle-secrete")
+        client.utiliser_societe(3)
         with patch("odoo.addons.appalach_hub.tools.odoo_json2.requests.post",
                    return_value=reponse_http(200, 2)) as post:
             self.assertEqual(client.od_existante("Salaires 2026-10"), 2)

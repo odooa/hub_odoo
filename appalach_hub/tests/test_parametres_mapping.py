@@ -103,9 +103,19 @@ class TestMapping(HubCase):
         self.assertEqual(second.compte_code, "455100")
 
     def test_droits(self):
-        mapping = self.env["hub.mapping"].with_user(self.comptable).create({
-            "dossier_id": self.dossier.id, "libelle": "Brut", "compte_code": "620200"})
+        for user in (self.comptable, self.gestionnaire):
+            with self.subTest(user=user.login), self.assertRaises(AccessError):
+                self.env["hub.mapping"].with_user(user).create({
+                    "dossier_id": self.dossier.id, "libelle": "Brut", "compte_code": "620200"})
+        # Seule voie de création : _memoriser (création de l'OD), même pour un comptable.
+        mapping = self.env["hub.mapping"].with_user(self.comptable)._memoriser(
+            self.dossier, "od_salaires", "Brut", "620200", "Rémunérations")
+        self.assertTrue(mapping.exists())
+        corrige = mapping.with_user(self.comptable)
+        corrige.write({"compte_code": "620300", "compte_libelle": "Autre"})
+        corrige.write({"active": False})
+        with self.assertRaisesRegex(UserError, "Seuls le compte"):
+            corrige.write({"libelle": "Autre libellé"})
         mapping.with_user(self.moteur).read(["compte_code"])
         with self.assertRaises(AccessError):
             mapping.with_user(self.moteur).write({"compte_code": "1"})
-        mapping.unlink()
