@@ -86,6 +86,37 @@ def chiffrer_rsa_oaep(cle_publique, texte):
     return base64.b64encode(chiffre).decode("ascii")
 
 
+def charger_cle_privee(pem):
+    """Charge une clé privée RSA PEM (bytes, non chiffrée)."""
+    try:
+        cle_privee = serialization.load_pem_private_key(pem, password=None)
+    except (ValueError, TypeError):
+        raise CleApiErreur(
+            "Clé privée du moteur illisible (PEM RSA non chiffré attendu)."
+        ) from None
+    if not isinstance(cle_privee, rsa.RSAPrivateKey):
+        raise CleApiErreur("La clé privée du moteur doit être une clé RSA.")
+    return cle_privee
+
+
+def dechiffrer_rsa_oaep(cle_privee, chiffre_b64):
+    """Inverse de chiffrer_rsa_oaep ; renvoie le texte en clair (str)."""
+    try:
+        clair = cle_privee.decrypt(
+            base64.b64decode(chiffre_b64),
+            padding.OAEP(
+                mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
+    except (ValueError, TypeError):
+        raise CleApiErreur(
+            "Déchiffrement impossible : la clé privée ne correspond pas au secret."
+        ) from None
+    return clair.decode("utf-8")
+
+
 def empreinte_cle_publique(cle_publique):
     """Empreinte SHA-256 (hex) de la clé publique, format DER SubjectPublicKeyInfo."""
     der = cle_publique.public_bytes(

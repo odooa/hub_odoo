@@ -6,4 +6,10 @@
               action="hub_dossier_action" sequence="10"/>
     <menuitem id="hub_menu_fait" name="Faits" parent="hub_menu_root"
               action="hub_fait_action" sequence="20"/>
+    <menuitem id="hub_menu_mapping" name="Mappings" parent="hub_menu_root"
+              action="hub_mapping_action" sequence="30"/>
+    <menuitem id="hub_menu_configuration" name="Configuration" parent="hub_menu_root"
+              sequence="90" groups="base.group_system"/>
+    <menuitem id="hub_menu_settings" name="Paramètres" parent="hub_menu_configuration"
+              action="hub_config_settings_action" sequence="10"/>
 </odoo>

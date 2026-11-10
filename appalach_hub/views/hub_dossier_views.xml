@@ -24,6 +24,9 @@
         <field name="arch" type="xml">
             <form>
                 <header>
+                    <button name="action_preparer_od_salaires" type="object"
+                            string="Préparer l'OD de salaires" class="btn-primary"
+                            invisible="not tache_od_salaires or not active"/>
                     <field name="statut" widget="statusbar" options="{'clickable': '1'}"/>
                 </header>
                 <sheet>
@@ -49,6 +52,7 @@
                             <field name="odoo_url" widget="url"/>
                             <field name="odoo_base"/>
                             <field name="odoo_version"/>
+                            <field name="odoo_company_id"/>
                             <field name="cle_api_definie" invisible="1"/>
                             <label for="cle_api_date" string="Clé API"/>
                             <div class="o_row">
@@ -92,7 +96,19 @@
                                 <field name="tache_controle_factures"/>
                                 <field name="tache_lettrage"/>
                                 <field name="tache_od_salaires"/>
+                                <field name="od_salaires_journal"
+                                       invisible="not tache_od_salaires"/>
                             </group>
+                        </page>
+                        <page name="mappings" string="Mappings">
+                            <field name="mapping_ids" context="{'default_dossier_id': id}">
+                                <list editable="bottom">
+                                    <field name="tache"/>
+                                    <field name="libelle"/>
+                                    <field name="compte_code"/>
+                                    <field name="compte_libelle"/>
+                                </list>
+                            </field>
                         </page>
                         <page name="equipe" string="Équipe">
                             <group>

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_config_settings_view_form" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit.appalach_hub</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="60"/>
+        <field name="inherit_id" ref="base.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="inside">
+                <app data-string="Hub compta" string="Hub compta" name="appalach_hub">
+                    <block title="Claude (API Anthropic)" name="hub_claude">
+                        <setting id="hub_claude_modele" string="Modèle"
+                                 help="Défaut : claude-sonnet-5-5 (ex. claude-opus-5-5 pour les cas difficiles)">
+                            <field name="hub_claude_modele"/>
+                        </setting>
+                        <setting id="hub_anthropic_cle" string="Clé API Anthropic"
+                                 help="Écriture seule : testée, chiffrée, jamais relisible">
+                            <field name="hub_anthropic_definie" invisible="1"/>
+                            <field name="hub_anthropic_info" class="text-muted"/>
+                            <button name="action_hub_definir_secret" type="object" icon="fa-key"
+                                    class="btn-link" context="{'hub_secret': 'anthropic_api_key'}"
+                                    string="Définir" invisible="hub_anthropic_definie"/>
+                            <button name="action_hub_definir_secret" type="object" icon="fa-key"
+                                    class="btn-link" context="{'hub_secret': 'anthropic_api_key'}"
+                                    string="Remplacer" invisible="not hub_anthropic_definie"/>
+                        </setting>
+                    </block>
+                    <block title="Nextcloud" name="hub_nextcloud">
+                        <setting id="hub_nextcloud_url" string="URL"
+                                 help="Ex. https://doc.appalach.be">
+                            <field name="hub_nextcloud_url"/>
+                        </setting>
+                        <setting id="hub_nextcloud_user" string="Utilisateur"
+                                 help="Compte de service, ex. agent">
+                            <field name="hub_nextcloud_user"/>
+                        </setting>
+                        <setting id="hub_nextcloud_password" string="Mot de passe d'application"
+                                 help="Écriture seule : testé, chiffré, jamais relisible. Enregistrez d'abord l'URL et l'utilisateur.">
+                            <field name="hub_nextcloud_definie" invisible="1"/>
+                            <field name="hub_nextcloud_info" class="text-muted"/>
+                            <button name="action_hub_definir_secret" type="object" icon="fa-key"
+                                    class="btn-link" context="{'hub_secret': 'nextcloud_password'}"
+                                    string="Définir" invisible="hub_nextcloud_definie"/>
+                            <button name="action_hub_definir_secret" type="object" icon="fa-key"
+                                    class="btn-link" context="{'hub_secret': 'nextcloud_password'}"
+                                    string="Remplacer" invisible="not hub_nextcloud_definie"/>
+                        </setting>
+                    </block>
+                </app>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hub_config_settings_action" model="ir.actions.act_window">
+        <field name="name">Paramètres</field>
+        <field name="res_model">res.config.settings</field>
+        <field name="view_mode">form</field>
+        <field name="context">{'module': 'appalach_hub'}</field>
+    </record>
+</odoo>

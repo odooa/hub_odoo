@@ -1,10 +1,9 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import AccessError, UserError
-from odoo.tools import config
 
 from ..tools import cle_api
+from ..tools.odoo_json2 import OdooJson2
 
-OPTION_CLE_PUBLIQUE = "appalach_hub_moteur_public_key_file"
 GROUPE_GESTIONNAIRE = "appalach_hub.group_hub_gestionnaire"
 GROUPE_MOTEUR = "appalach_hub.group_hub_moteur"
 
@@ -47,6 +46,10 @@ class HubDossier(models.Model):
     odoo_url = fields.Char("URL Odoo", tracking=True, help="Ex. https://client.odoo.com")
     odoo_base = fields.Char("Base", tracking=True)
     odoo_version = fields.Char("Version", tracking=True, help="Ex. 19.0")
+    odoo_company_id = fields.Integer(
+        "ID de la société", tracking=True,
+        help="Facultatif : société à utiliser si la base du client en contient plusieurs.",
+    )
 
     # Clé API : écriture seule, voir _definir_cle_api. Le chiffré n'est lisible que
     # par le groupe Moteur ; la clé en clair n'est jamais stockée.
@@ -90,6 +93,11 @@ class HubDossier(models.Model):
     tache_lettrage = fields.Boolean("Lettrage bancaire", tracking=True)
     tache_od_salaires = fields.Boolean("OD de salaires", tracking=True)
 
+    od_salaires_journal = fields.Char(
+        "Journal des OD de salaires", tracking=True,
+        help="Code du journal général mémorisé lors de la dernière OD de salaires.",
+    )
+    mapping_ids = fields.One2many("hub.mapping", "dossier_id", "Mappings")
     fait_ids = fields.One2many("hub.fait", "dossier_id", "Faits")
     fait_count = fields.Integer("Nombre de faits", compute="_compute_fait_count")
     note = fields.Html("Notes")
@@ -155,28 +163,8 @@ class HubDossier(models.Model):
         if not self.env.su and not self.env.user.has_group(GROUPE_GESTIONNAIRE):
             raise AccessError(_("Seul un gestionnaire du hub peut définir la clé API."))
 
-    @api.model
-    def _lire_cle_publique_moteur(self):
-        """Renvoie la clé publique du moteur (PEM, bytes) déclarée dans odoo.conf."""
-        chemin = config.get(OPTION_CLE_PUBLIQUE)
-        if not chemin:
-            raise UserError(
-                _(
-                    "Clé publique du moteur non configurée : ajoutez l'option %s "
-                    "dans odoo.conf.",
-                    OPTION_CLE_PUBLIQUE,
-                )
-            )
-        try:
-            with open(chemin, "rb") as fichier:
-                return fichier.read()
-        except OSError:
-            raise UserError(
-                _("Fichier de clé publique du moteur illisible : %s", chemin)
-            ) from None
-
     def _definir_cle_api(self, cle):
-        """Teste la clé sur l'Odoo du dossier, la chiffre et ne stocke que le chiffré.
+        """Chiffre la clé, la teste sur l'Odoo du dossier et ne stocke que le chiffré.
 
         La clé en clair ne quitte pas cette méthode : ni stockage, ni journal, ni message.
         """
@@ -191,9 +179,9 @@ class HubDossier(models.Model):
             )
         remplacement = self.cle_api_definie
         try:
-            cle_publique = cle_api.charger_cle_publique(self._lire_cle_publique_moteur())
+            # Chiffrer d'abord : une clé publique absente bloque avant tout appel réseau.
+            chiffre, empreinte = self.env["hub.secrets"]._chiffrer(cle)
             cle_api.tester_connexion_json2(self.odoo_url, self.odoo_base, cle)
-            chiffre = cle_api.chiffrer_rsa_oaep(cle_publique, cle)
         except cle_api.CleApiErreur as erreur:
             raise UserError(str(erreur)) from None
         finally:
@@ -201,7 +189,7 @@ class HubDossier(models.Model):
         self.sudo().write(
             {
                 "cle_api_chiffree": chiffre,
-                "cle_api_empreinte": cle_api.empreinte_cle_publique(cle_publique),
+                "cle_api_empreinte": empreinte,
                 "cle_api_date": fields.Datetime.now(),
                 "cle_api_user_id": self.env.user.id,
             }
@@ -211,3 +199,42 @@ class HubDossier(models.Model):
         else:
             corps = _("Clé API définie — connexion testée sur la base %s.", self.odoo_base)
         self.message_post(body=corps)
+
+    def _cle_api_en_clair(self):
+        """Clé API déchiffrée, pour un appel immédiat. Ne jamais la stocker ni l'afficher."""
+        self.ensure_one()
+        dossier = self.sudo()
+        if not dossier.cle_api_chiffree:
+            raise UserError(_("Aucune clé API définie pour le dossier %s.", self.code))
+        return self.env["hub.secrets"]._dechiffrer(
+            dossier.cle_api_chiffree, dossier.cle_api_empreinte
+        )
+
+    def _client_odoo(self):
+        """Client JSON-2 de l'Odoo du dossier."""
+        self.ensure_one()
+        if not self.odoo_url or not self.odoo_base:
+            raise UserError(_("URL ou base de l'Odoo du dossier non renseignée."))
+        return OdooJson2(
+            self.odoo_url, self.odoo_base, self._cle_api_en_clair(), self.odoo_company_id or None
+        )
+
+    # ------------------------------------------------------------------
+    # Traces et OD de salaires
+    # ------------------------------------------------------------------
+
+    def _tracer(self, corps):
+        """Message dans le chatter du dossier (jamais de secret ni de détail de paie)."""
+        self.ensure_one()
+        self.message_post(body=corps)
+
+    def action_preparer_od_salaires(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("OD de salaires"),
+            "res_model": "hub.od.salaires.wizard",
+            "view_mode": "form",
+            "target": "new",
+            "context": {"default_dossier_id": self.id},
+        }

@@ -39,12 +39,11 @@ class TestCleApi(TransactionCase):
             "name": "Dossier clé", "code": "CLE1",
             "odoo_url": "https://exemple.invalid", "odoo_base": "base_test",
         })
-        cls.classe_dossier = type(cls.env["hub.dossier"])
+        cls.classe_secrets = type(cls.env["hub.secrets"])
 
     def _patch_cle_publique(self, pem=None):
         return patch.object(
-            self.classe_dossier, "_lire_cle_publique_moteur",
-            return_value=pem or self.pem_publique,
+            self.classe_secrets, "_lire_pem", return_value=pem or self.pem_publique,
         )
 
     def _definir(self, user, status_code=200):
@@ -79,7 +78,11 @@ class TestCleApi(TransactionCase):
         self._definir(self.gestionnaire)  # remplacement
         self.env.flush_all()
         motif = f"%{CLE_EN_CLAIR}%"
-        for table in ("hub_dossier", "hub_dossier_cle_wizard", "mail_message", "mail_tracking_value"):
+        tables = ("hub_dossier", "hub_dossier_cle_wizard", "mail_message", "mail_tracking_value")
+        # mail_tracking_value n'existe plus en Odoo 20 (suivi stocké avec mail_message).
+        self.env.cr.execute("SELECT t FROM unnest(%s::text[]) t WHERE to_regclass(t) IS NOT NULL",
+                            [list(tables)])
+        for (table,) in self.env.cr.fetchall():
             self.env.cr.execute(
                 f"SELECT count(*) FROM {table} t WHERE t::text LIKE %s", [motif]
             )
@@ -96,8 +99,8 @@ class TestCleApi(TransactionCase):
 
     def test_cle_publique_absente(self):
         with patch(CHEMIN_POST, return_value=_reponse(200)) as post, \
-                patch("odoo.addons.appalach_hub.models.hub_dossier.config.get", return_value=None), \
-                self.assertRaisesRegex(UserError, "non configurée"):
+                patch("odoo.addons.appalach_hub.models.hub_secrets.config.get", return_value=None), \
+                self.assertRaisesRegex(UserError, "absente de odoo.conf"):
             self.env["hub.dossier.cle.wizard"].with_user(self.gestionnaire).create({
                 "dossier_id": self.dossier.id, "cle_api": CLE_EN_CLAIR,
             })

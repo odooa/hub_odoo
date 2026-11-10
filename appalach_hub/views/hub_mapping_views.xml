@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hub_mapping_view_list" model="ir.ui.view">
+        <field name="name">hub.mapping.list</field>
+        <field name="model">hub.mapping</field>
+        <field name="arch" type="xml">
+            <list>
+                <field name="dossier_id"/>
+                <field name="tache"/>
+                <field name="libelle"/>
+                <field name="compte_code"/>
+                <field name="compte_libelle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="hub_mapping_view_form" model="ir.ui.view">
+        <field name="name">hub.mapping.form</field>
+        <field name="model">hub.mapping</field>
+        <field name="arch" type="xml">
+            <form>
+                <sheet>
+                    <widget name="web_ribbon" title="Archivé" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <group>
+                        <group>
+                            <field name="dossier_id"/>
+                            <field name="tache"/>
+                            <field name="libelle"/>
+                            <field name="active" invisible="1"/>
+                        </group>
+                        <group>
+                            <field name="compte_code"/>
+                            <field name="compte_libelle"/>
+                        </group>
+                    </group>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="hub_mapping_view_search" model="ir.ui.view">
+        <field name="name">hub.mapping.search</field>
+        <field name="model">hub.mapping</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="libelle"/>
+                <field name="compte_code"/>
+                <field name="dossier_id"/>
+                <filter name="archive" string="Archivés" domain="[('active', '=', False)]"/>
+                <group>
+                    <filter name="group_dossier" string="Dossier" context="{'group_by': 'dossier_id'}"/>
+                    <filter name="group_tache" string="Tâche" context="{'group_by': 'tache'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="hub_mapping_action" model="ir.actions.act_window">
+        <field name="name">Mappings</field>
+        <field name="res_model">hub.mapping</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aucun mapping</p>
+            <p>Les mappings sont créés en validant une OD de salaires depuis un dossier.</p>
+        </field>
+    </record>
+</odoo>
