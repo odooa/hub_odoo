@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hub_run_view_list" model="ir.ui.view">
+        <field name="name">hub.run.list</field>
+        <field name="model">hub.run</field>
+        <field name="arch" type="xml">
+            <list create="0" delete="0">
+                <field name="name"/>
+                <field name="dossier_id"/>
+                <field name="tache" optional="hide"/>
+                <field name="etat" widget="badge"
+                       decoration-info="etat in ('en_file', 'en_cours')"
+                       decoration-warning="etat in ('en_attente', 'proposition')"
+                       decoration-success="etat == 'od_creee'"
+                       decoration-danger="etat == 'echec'"
+                       decoration-muted="etat == 'rejete'"/>
+                <field name="periode"/>
+                <field name="reference" optional="show"/>
+                <field name="modele" optional="hide"/>
+                <field name="nb_etapes" optional="show"/>
+                <field name="user_id" widget="many2one_avatar_user" optional="show"/>
+                <field name="create_date" string="Lancé le"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="hub_run_view_form" model="ir.ui.view">
+        <field name="name">hub.run.form</field>
+        <field name="model">hub.run</field>
+        <field name="arch" type="xml">
+            <form create="0" delete="0">
+                <header>
+                    <button name="action_creer_od" type="object" string="Créer l'OD en brouillon"
+                            class="btn-primary" invisible="etat != 'proposition' or not controles_ok"
+                            confirm="Créer l'OD en brouillon dans l'Odoo du client ? Elle ne sera pas comptabilisée."/>
+                    <button name="action_repondre" type="object" string="Répondre et reprendre"
+                            class="btn-primary" invisible="etat != 'en_attente'"/>
+                    <button name="action_rejeter" type="object" string="Rejeter"
+                            invisible="etat not in ('en_attente', 'proposition')"
+                            confirm="Rejeter et terminer cette exécution ?"/>
+                    <field name="etat" widget="statusbar"
+                           statusbar_visible="en_file,en_cours,proposition,od_creee"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <div class="alert alert-info" role="status"
+                         invisible="etat not in ('en_file', 'en_cours')">
+                        L'agent travaille en arrière-plan : rechargez la page pour voir les
+                        nouvelles étapes.
+                    </div>
+                    <div class="alert alert-danger" role="alert" invisible="etat != 'echec'">
+                        <field name="motif"/>
+                    </div>
+                    <div class="alert alert-success" role="status" invisible="etat != 'od_creee'">
+                        OD créée en brouillon dans l'Odoo du client, PDF joint. Elle n'est pas
+                        comptabilisée. <field name="move_lien" widget="url"/>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="dossier_id" options="{'no_open': False}"/>
+                            <field name="tache"/>
+                            <field name="user_id"/>
+                            <field name="pdf_nom"/>
+                            <field name="periode_demandee" invisible="not periode_demandee"/>
+                            <field name="societe_client_nom"/>
+                        </group>
+                        <group>
+                            <field name="modele"/>
+                            <label for="nb_etapes"/>
+                            <div><field name="nb_etapes" class="oe_inline"/> / <field name="max_etapes" class="oe_inline"/></div>
+                            <field name="tokens_entree"/>
+                            <field name="tokens_sortie"/>
+                            <field name="budget_tokens"/>
+                        </group>
+                    </group>
+
+                    <div invisible="etat != 'en_attente'" class="alert alert-warning" role="alert">
+                        <h4>Question de l'agent</h4>
+                        <field name="question" class="fw-bold"/>
+                        <field name="question_contexte" invisible="not question_contexte"/>
+                        <div invisible="not question_options">
+                            <b>Options proposées :</b> <field name="question_options"/>
+                        </div>
+                    </div>
+                    <group invisible="etat != 'en_attente'">
+                        <field name="reponse" placeholder="Votre réponse à l'agent"/>
+                    </group>
+                    <group invisible="etat not in ('rejete', 'od_creee', 'proposition') or not question">
+                        <field name="question" string="Dernière question"/>
+                        <field name="reponse" string="Réponse" readonly="1"/>
+                    </group>
+
+                    <notebook>
+                        <page name="proposition" string="Proposition"
+                              invisible="etat not in ('proposition', 'od_creee', 'rejete') or not ligne_ids">
+                            <group>
+                                <group>
+                                    <field name="periode"/>
+                                    <field name="reference"/>
+                                    <field name="journal_code"/>
+                                    <field name="date_od"/>
+                                </group>
+                                <group string="Totaux du récapitulatif">
+                                    <field name="total_brut"/>
+                                    <field name="total_onss"/>
+                                    <field name="total_precompte"/>
+                                    <field name="total_net"/>
+                                </group>
+                            </group>
+                            <field name="controles_ok" invisible="1"/>
+                            <field name="ligne_ids" readonly="etat != 'proposition'">
+                                <list editable="bottom" create="0" delete="0">
+                                    <field name="sequence" column_invisible="1"/>
+                                    <field name="libelle"/>
+                                    <field name="compte_code"/>
+                                    <field name="compte_nom"/>
+                                    <field name="partenaire_id" optional="hide"/>
+                                    <field name="partenaire_nom" optional="show"/>
+                                    <field name="categorie" optional="hide"/>
+                                    <field name="debit" sum="Débit"/>
+                                    <field name="credit" sum="Crédit"/>
+                                    <field name="origine" widget="badge"
+                                           decoration-success="origine == 'mapping'"
+                                           decoration-info="origine == 'historique'"
+                                           decoration-warning="origine == 'pcmn'"
+                                           decoration-muted="origine == 'manuel'"/>
+                                    <field name="ecriture_reference" optional="show"/>
+                                    <field name="justification" optional="show"/>
+                                </list>
+                            </field>
+                            <field name="controles_html" invisible="etat != 'proposition'"/>
+                            <field name="remarques" invisible="not remarques"/>
+                        </page>
+                        <page name="etapes" string="Étapes">
+                            <field name="etape_ids" readonly="1">
+                                <list decoration-danger="est_erreur">
+                                    <field name="sequence"/>
+                                    <field name="type"/>
+                                    <field name="outil"/>
+                                    <field name="resultat_resume"/>
+                                    <field name="tokens_entree" optional="hide"/>
+                                    <field name="tokens_sortie" optional="hide"/>
+                                    <field name="duree" optional="show"/>
+                                    <field name="est_erreur" column_invisible="1"/>
+                                </list>
+                                <form>
+                                    <group>
+                                        <group>
+                                            <field name="sequence"/>
+                                            <field name="type"/>
+                                            <field name="outil"/>
+                                        </group>
+                                        <group>
+                                            <field name="tokens_entree"/>
+                                            <field name="tokens_sortie"/>
+                                            <field name="duree"/>
+                                        </group>
+                                    </group>
+                                    <group>
+                                        <field name="raisonnement"/>
+                                        <field name="parametres" widget="code" options="{'mode': 'javascript'}"/>
+                                        <field name="resultat_resume"/>
+                                    </group>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="hub_run_view_search" model="ir.ui.view">
+        <field name="name">hub.run.search</field>
+        <field name="model">hub.run</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="dossier_id"/>
+                <field name="reference"/>
+                <filter name="a_traiter" string="À traiter"
+                        domain="[('etat', 'in', ('en_attente', 'proposition'))]"/>
+                <filter name="en_cours" string="En cours"
+                        domain="[('etat', 'in', ('en_file', 'en_cours'))]"/>
+                <filter name="mes_runs" string="Mes exécutions" domain="[('user_id', '=', uid)]"/>
+                <group>
+                    <filter name="group_dossier" string="Dossier" context="{'group_by': 'dossier_id'}"/>
+                    <filter name="group_etat" string="État" context="{'group_by': 'etat'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="hub_run_action" model="ir.actions.act_window">
+        <field name="name">Exécutions</field>
+        <field name="res_model">hub.run</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Aucune exécution</p>
+            <p>Lancez l'agent depuis un dossier (« Préparer l'OD de salaires »).</p>
+        </field>
+    </record>
+</odoo>

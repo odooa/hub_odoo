@@ -1,7 +1,7 @@
 {
     "name": "Hub comptable Appalach",
-    "summary": "Dossiers clients, faits, mappings et OD de salaires",
-    "version": "20.0.1.2.0",
+    "summary": "Dossiers clients, faits, mappings et agent OD de salaires",
+    "version": "20.0.2.0.0",
     "category": "Accounting",
     "author": "Appalach",
     "website": "https://www.appalach.be",
@@ -11,9 +11,11 @@
     "data": [
         "security/hub_security.xml",
         "security/ir.access.csv",
+        "data/hub_cron.xml",
         "views/hub_dossier_views.xml",
         "views/hub_fait_views.xml",
         "views/hub_mapping_views.xml",
+        "views/hub_run_views.xml",
         "views/res_config_settings_views.xml",
         "wizard/hub_dossier_cle_wizard_views.xml",
         "wizard/hub_parametre_secret_wizard_views.xml",

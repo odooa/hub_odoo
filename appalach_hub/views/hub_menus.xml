@@ -6,6 +6,8 @@
               action="hub_dossier_action" sequence="10"/>
     <menuitem id="hub_menu_fait" name="Faits" parent="hub_menu_root"
               action="hub_fait_action" sequence="20"/>
+    <menuitem id="hub_menu_run" name="Exécutions" parent="hub_menu_root"
+              action="hub_run_action" sequence="25"/>
     <menuitem id="hub_menu_mapping" name="Mappings" parent="hub_menu_root"
               action="hub_mapping_action" sequence="30"/>
     <menuitem id="hub_menu_configuration" name="Configuration" parent="hub_menu_root"

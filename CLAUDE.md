@@ -62,35 +62,54 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
    lien), destinataire, texte, options, réponse client, commentaire, décision comptable,
    état (`question_client_envoyee → reponse_client → decision_comptable → appliquee`),
    jeton d'accès.
-5. `hub.run` (+ étapes, actions) : exécutions du moteur, alimentées par l'API.
+5. `hub.run` (+ `hub.run.etape`, `hub.run.ligne`) : exécutions de l'agent, liées au dossier ;
+   chaque appel du modèle et chaque outil (paramètres, résumé du résultat, raisonnement
+   résumé, tokens) est une étape visible. Plus tard aussi alimentées par le moteur externe.
 6. `hub.mapping` : libellé de rubrique → code et libellé de compte de l'Odoo client, par
    dossier et par tâche (`od_salaires` pour l'instant). Unicité sur le libellé normalisé.
    Alimenté **uniquement** par la création d'une OD (en sudo) ; le menu sert à consulter et
    corriger (compte, archivage), jamais à saisir (droits `rud`, `create="0"`).
 
-## OD de salaires dans le hub (POC)
+## OD de salaires dans le hub (POC) : agent
 
-- Pour le POC, l'OD de salaires tourne **dans le module**, sans moteur externe : assistant
-  « Préparer l'OD de salaires » sur le dossier (PDF Nextcloud ou déposé → extraction par
-  Claude → comptes proposés : mapping d'abord, Claude ensuite → contrôles → OD en
-  **brouillon** avec PDF joint). Jamais de comptabilisation ; refus si la réf existe déjà.
-- Appels HTTP par `requests` uniquement (aucun SDK dans le conteneur) : API Claude
-  (`anthropic-version` = valeur du SDK Python officiel, vérifiée dans sa source), Nextcloud
-  WebDAV, JSON-2 de l'Odoo client. Pas de repli automatique si Claude refuse.
-- Propositions de comptes, dans cet ordre (origine affichée par ligne) : `mapping` validé →
-  `historique` (Claude s'appuie sur les 6 dernières OD de salaires comptabilisées du client
-  et cite l'écriture de référence, vérifiée) → `pcmn` (proposition générique) ; `manuel` si
-  l'utilisateur change le compte. Option du dossier « anonymiser les libellés de
-  l'historique » (désactivée par défaut) : seul le libellé du compte est envoyé.
+- L'OD de salaires est préparée par un **agent** (tool use de l'API Messages, par `requests`,
+  aucun SDK dans le conteneur) qui tourne **dans le module**, sans moteur externe. Mission :
+  « prépare l'OD de la période à partir de ce PDF, en suivant la façon dont ce dossier encode
+  ses salaires ». Logique sans ORM dans `tools/agent.py` (boucle) et `tools/agent_outils.py`
+  (définitions, exécution, contrôle de `proposer_od`).
+- **Outils en lecture seule** : lire_pdf, chercher_od_historique (filtres structurés : le
+  domaine est construit par le code, jamais fourni par Claude), lire_lignes_ecriture,
+  plan_comptable, journaux, partenaires, mappings_valides, poser_question (met le run en
+  attente d'une réponse du comptable), proposer_od (n'écrit rien).
+- **Boucle** : arrêt sur proposer_od valide ou poser_question ; une relance si Claude
+  s'arrête sans outil final ; limites (paramètres Hub compta) : étapes (appels au modèle,
+  défaut 20) et budget de tokens cumulés (défaut 400 000) ; modèle par défaut
+  `claude-sonnet-5-5`, Opus au choix au lancement. `tool_choice` reste `auto` (Sonnet 5.5 et
+  Opus 5.5 refusent l'appel forcé), outils `strict`, réflexion adaptative résumée, blocs de
+  réflexion renvoyés tels quels, définitions d'outils figées pendant une conversation. Pas de
+  repli si Claude refuse. `anthropic-version` = valeur du SDK Python officiel, vérifiée dans
+  sa source.
+- **Exécution en arrière-plan** par un cron (`ir_cron_hub_run`, réveillé par `_trigger()`),
+  pas dans la requête web (`limit_time_real`). Les étapes sont validées au fil de l'eau par
+  `ir.cron._commit_progress()` seulement en contexte cron (commit interdit dans les tests).
+- **proposer_od** : le code contrôle (période et date, journal, comptes existants avec code,
+  partenaires, équilibre, totaux par catégorie vs totaux du PDF, doublon de réf) ; anomalies
+  renvoyées à l'agent pour correction, doublon = arrêt. Origine par ligne : `mapping` (compte
+  = mapping validé), `historique` (écriture citée **réellement lue** pendant le run), sinon
+  `pcmn` ; `manuel` si le comptable change le compte ou le partenaire. Le comptable valide :
+  tout est revérifié chez le client, puis OD **en brouillon** avec PDF joint. Jamais de
+  comptabilisation. Les mappings sont alimentés à la création de l'OD.
 - Toutes les lectures dans l'Odoo client se font dans le contexte d'une société
   (`odoo_company_id` du dossier, sinon société de l'utilisateur API via `context_get` +
-  `res.users/read`) : `account.account.code` dépend de la société. Comptes sans code ignorés
-  et signalés ; bloquant seulement si une rubrique en a besoin.
-- Les copies temporaires des comptes et journaux du client ne se créent que depuis le code de
-  l'assistant (création rapide refusée côté vues et côté serveur).
-- Chaque exécution (extraction, création, échec) est tracée dans le chatter du dossier, sans
-  secret ni détail de paie ; le PDF n'est pas conservé dans le hub.
-- Logique reprise de `hub_compta/prototypes/od_salaires.py`, conservé comme référence.
+  `res.users/read`) : `account.account.code` dépend de la société. Option du dossier
+  « anonymiser les libellés de l'historique » : seul le libellé du compte est envoyé.
+- **Données de paie** : PDF et conversation conservés le temps du run (champs réservés aux
+  administrateurs, absents des vues ; le PDF n'est jamais stocké dans la conversation, un
+  marqueur est substitué à l'envoi), purgés à la fin (OD créée, rejet, échec). Étapes et
+  lignes visibles par le lanceur, les comptables du dossier et les gestionnaires. Le chatter
+  du dossier ne garde qu'un résumé, sans secret ni détail de paie. Le contenu du PDF et des
+  écritures est une donnée, jamais une instruction (seul le clic humain écrit chez le client).
+- Logique d'origine reprise de `hub_compta/prototypes/od_salaires.py`, conservé comme référence.
 
 ## Sécurité
 

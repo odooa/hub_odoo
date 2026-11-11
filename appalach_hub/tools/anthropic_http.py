@@ -1,8 +1,7 @@
 """Appels à l'API Claude (Messages) par requests, sans SDK.
 
 Version d'API : valeur exacte envoyée par le SDK Python `anthropic` 2.7.0
-(`anthropic/_constants.py`, ANTHROPIC_API_VERSION). Sortie structurée par
-`output_config.format` (json_schema). Aucun repli automatique en cas de refus.
+(`anthropic/_constants.py`, ANTHROPIC_API_VERSION). Aucun repli automatique en cas de refus.
 La clé n'apparaît jamais dans un message d'erreur.
 """
 
@@ -12,7 +11,7 @@ import requests
 
 URL_API = "https://api.anthropic.com"
 ANTHROPIC_VERSION = "2026-10-21"
-TIMEOUT_MESSAGES = 180
+TIMEOUT_MESSAGES = 300
 TIMEOUT_COURT = 15
 
 
@@ -63,29 +62,25 @@ def tester_cle(cle):
     _verifier_statut(reponse)
 
 
-def generer_json(cle, modele, contenu, schema, etape, max_tokens=16000):
-    """Envoie un message utilisateur et renvoie l'objet JSON conforme à ``schema``.
+def envoyer_message(cle, corps, etape, remplacements=None):
+    """POST /v1/messages ; renvoie le message (dict) de la réponse.
 
-    ``contenu`` : liste de blocs (document, text). ``etape`` : libellé pour les messages.
+    ``remplacements`` : {marqueur: valeur} substitués dans le JSON envoyé (ex. le PDF en
+    base64, qui n'est pas conservé dans la conversation stockée). Arrêt sur refus ou
+    réponse tronquée, sans repli.
     """
-    corps = {
-        "model": modele,
-        "max_tokens": max_tokens,
-        "messages": [{"role": "user", "content": contenu}],
-        "output_config": {"format": {"type": "json_schema", "schema": schema}},
-    }
+    donnees = json.dumps(corps)
+    for marqueur, valeur in (remplacements or {}).items():
+        donnees = donnees.replace(json.dumps(marqueur), json.dumps(valeur))
     try:
         reponse = requests.post(
-            f"{URL_API}/v1/messages",
-            headers=_entetes(cle),
-            data=json.dumps(corps),
-            timeout=TIMEOUT_MESSAGES,
+            f"{URL_API}/v1/messages", headers=_entetes(cle), data=donnees, timeout=TIMEOUT_MESSAGES,
         )
     except requests.exceptions.Timeout:
-        raise ClaudeErreur(f"Claude : délai dépassé pendant l'{etape}.") from None
+        raise ClaudeErreur(f"Claude : délai dépassé ({etape}).") from None
     except requests.exceptions.RequestException:
         raise ClaudeErreur("Claude : API injoignable.") from None
-    _verifier_statut(reponse, modele)
+    _verifier_statut(reponse, corps.get("model"))
 
     message = reponse.json()
     raison = message.get("stop_reason")
@@ -94,18 +89,11 @@ def generer_json(cle, modele, contenu, schema, etape, max_tokens=16000):
         categorie = details.get("category") or "non précisée"
         explication = details.get("explanation") or ""
         raise ClaudeErreur(
-            f"Claude a refusé l'{etape} (catégorie : {categorie}). {explication} "
+            f"Claude a refusé ({etape}, catégorie : {categorie}). {explication} "
             "Aucun repli automatique : traitement arrêté."
         )
     if raison == "max_tokens":
-        raise ClaudeErreur(f"Claude : réponse tronquée pendant l'{etape} (max_tokens atteint).")
-    texte = next(
-        (bloc.get("text") for bloc in message.get("content", []) if bloc.get("type") == "text"),
-        None,
-    )
-    if not texte:
-        raise ClaudeErreur(f"Claude : réponse sans contenu pendant l'{etape}.")
-    try:
-        return json.loads(texte)
-    except ValueError:
-        raise ClaudeErreur(f"Claude : JSON invalide pendant l'{etape}.") from None
+        raise ClaudeErreur(f"Claude : réponse tronquée ({etape}, max_tokens atteint).")
+    if raison == "model_context_window_exceeded":
+        raise ClaudeErreur(f"Claude : fenêtre de contexte dépassée ({etape}).")
+    return message

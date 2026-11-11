@@ -5,85 +5,27 @@
         <field name="model">hub.od.salaires.wizard</field>
         <field name="arch" type="xml">
             <form>
-                <header>
-                    <field name="etape" widget="statusbar"/>
-                </header>
                 <field name="dossier_id" invisible="1"/>
-                <field name="controles_ok" invisible="1"/>
-
-                <!-- Étape 1 : source du PDF -->
-                <group invisible="etape != 'source'">
+                <group>
                     <field name="source" widget="radio"/>
                     <field name="dossier_nextcloud" invisible="source != 'nextcloud'"/>
                     <field name="pdf" filename="pdf_nom" invisible="source != 'fichier'"
-                           required="etape == 'source' and source == 'fichier'"/>
+                           required="source == 'fichier'"/>
+                    <field name="pdf_nom" invisible="1"/>
+                    <field name="periode" placeholder="AAAA-MM"/>
+                    <field name="modele"/>
                 </group>
-                <p class="text-muted" invisible="etape != 'source'">
-                    L'extraction envoie le PDF à Claude, lit le plan comptable et les journaux de
-                    l'Odoo du client, puis propose un compte par rubrique (mapping mémorisé
-                    d'abord, Claude pour les rubriques inconnues). Elle peut prendre une minute.
+                <p class="text-muted">
+                    L'agent lit le PDF puis, dans l'Odoo du client, les OD de salaires déjà
+                    encodées, le plan comptable, les journaux et les partenaires, et propose une
+                    OD qui suit les habitudes du dossier. Il travaille en arrière-plan : la page
+                    de l'exécution montre chaque étape (rechargez-la). Rien n'est écrit chez le
+                    client avant votre validation, et l'OD est créée en brouillon.
                 </p>
-
-                <!-- Étape 2 : revue -->
-                <div invisible="etape == 'source'">
-                    <group>
-                        <group>
-                            <field name="periode"/>
-                            <field name="reference"/>
-                            <field name="secretariat"/>
-                            <field name="pdf_nom" string="PDF" readonly="1"/>
-                            <field name="modele"/>
-                            <field name="societe_client_nom"/>
-                            <field name="historique_nb"/>
-                            <field name="historique_periode" invisible="not historique_nb"/>
-                        </group>
-                        <group string="Totaux du récapitulatif">
-                            <field name="total_brut"/>
-                            <field name="total_onss"/>
-                            <field name="total_precompte"/>
-                            <field name="total_net"/>
-                        </group>
-                    </group>
-                    <group invisible="etape != 'revue'">
-                        <field name="journal_ids" invisible="1"/>
-                        <field name="compte_ids" invisible="1"/>
-                        <field name="journal_id" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"
-                               required="etape == 'revue'"/>
-                    </group>
-                    <field name="avertissements_html" readonly="1"
-                           invisible="etape != 'revue' or not avertissements_html"/>
-                    <field name="ligne_ids" readonly="etape != 'revue'">
-                        <list editable="bottom" create="0" delete="0">
-                            <field name="sequence" widget="handle"/>
-                            <field name="libelle" readonly="1"/>
-                            <field name="sens" readonly="1"/>
-                            <field name="categorie"/>
-                            <field name="montant" readonly="1" sum="Total"/>
-                            <field name="compte_id" options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"
-                                   domain="[('wizard_id', '=', parent.id)]"/>
-                            <field name="compte_sans_code" optional="hide"/>
-                            <field name="origine" widget="badge" readonly="1"
-                                   decoration-success="origine == 'mapping'"
-                                   decoration-info="origine == 'historique'"
-                                   decoration-warning="origine == 'pcmn'"
-                                   decoration-muted="origine == 'manuel'"/>
-                            <field name="justification" readonly="1" optional="show"/>
-                        </list>
-                    </field>
-                    <field name="controles_html" readonly="1" invisible="etape != 'revue'"/>
-                    <div invisible="etape != 'termine'" class="alert alert-success" role="status">
-                        OD créée en brouillon dans l'Odoo du client, PDF joint. Elle n'est pas
-                        comptabilisée.
-                        <field name="move_lien" widget="url" readonly="1"/>
-                    </div>
-                </div>
-
                 <footer>
-                    <button name="action_extraire" type="object" string="Extraire"
-                            class="btn-primary" invisible="etape != 'source'"/>
-                    <button name="action_creer_od" type="object" string="Créer l'OD en brouillon"
-                            class="btn-primary" invisible="etape != 'revue' or not controles_ok"/>
-                    <button special="cancel" string="Fermer"/>
+                    <button name="action_lancer" type="object" string="Lancer l'agent"
+                            class="btn-primary"/>
+                    <button special="cancel" string="Annuler"/>
                 </footer>
             </form>
         </field>

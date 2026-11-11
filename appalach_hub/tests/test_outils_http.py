@@ -27,37 +27,37 @@ def message_claude(texte=None, stop_reason="end_turn", stop_details=None):
 @tagged("post_install", "-at_install")
 class TestClaudeHttp(BaseCase):
     def test_requete_et_reponse(self):
-        donnees = {"periode": "2026-10"}
-        with patch(POST_CLAUDE, return_value=reponse_http(200, message_claude(json.dumps(donnees)))) as post:
-            resultat = anthropic_http.generer_json(
-                "cle-fictive", "claude-sonnet-5-5", [{"type": "text", "text": "x"}],
-                ods.SCHEMA_EXTRACTION, "extraction",
-            )
-        self.assertEqual(resultat, donnees)
+        message = message_claude("ok")
+        corps = {"model": "claude-sonnet-5-5", "messages": [{"role": "user", "content": [
+            {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
+                                            "data": "__MARQUEUR__"}}]}]}
+        with patch(POST_CLAUDE, return_value=reponse_http(200, message)) as post:
+            resultat = anthropic_http.envoyer_message(
+                "cle-fictive", corps, "étape 1", {"__MARQUEUR__": "UERGLWJhc2U2NA=="})
+        self.assertEqual(resultat, message)
         url = post.call_args.args[0]
         entetes = post.call_args.kwargs["headers"]
-        corps = json.loads(post.call_args.kwargs["data"])
+        envoye = json.loads(post.call_args.kwargs["data"])
         self.assertEqual(url, "https://api.anthropic.com/v1/messages")
         self.assertEqual(entetes["anthropic-version"], "2026-10-21")
         self.assertEqual(entetes["x-api-key"], "cle-fictive")
-        self.assertEqual(corps["model"], "claude-sonnet-5-5")
-        self.assertEqual(corps["output_config"]["format"]["type"], "json_schema")
-        self.assertFalse(corps["output_config"]["format"]["schema"]["additionalProperties"])
-        self.assertNotIn("fallbacks", corps)
-        self.assertNotIn("temperature", corps)
+        self.assertEqual(envoye["messages"][0]["content"][0]["source"]["data"], "UERGLWJhc2U2NA==")
+        self.assertEqual(corps["messages"][0]["content"][0]["source"]["data"], "__MARQUEUR__")
+        self.assertNotIn("fallbacks", envoye)
 
     def test_refus_sans_repli(self):
         refus = message_claude(stop_reason="refusal",
                                stop_details={"category": "general_harms", "explanation": "Fictif."})
         with patch(POST_CLAUDE, return_value=reponse_http(200, refus)) as post, \
                 self.assertRaisesRegex(anthropic_http.ClaudeErreur, "refusé.*general_harms.*Aucun repli"):
-            anthropic_http.generer_json("k", "m", [], {}, "extraction")
+            anthropic_http.envoyer_message("k", {"model": "m"}, "étape 1")
         self.assertEqual(post.call_count, 1)
 
     def test_tronque_et_erreurs_http(self):
         cas = [
             (reponse_http(200, message_claude("{", stop_reason="max_tokens")), "tronquée"),
-            (reponse_http(200, message_claude("pas du json")), "JSON invalide"),
+            (reponse_http(200, message_claude(stop_reason="model_context_window_exceeded")),
+             "fenêtre de contexte"),
             (reponse_http(401, {"error": {"message": "x"}}), "clé API refusée"),
             (reponse_http(404, {"error": {"message": "x"}}), "modèle inconnu"),
             (reponse_http(429, {"error": {"message": "x"}}), "limite de débit"),
@@ -66,7 +66,7 @@ class TestClaudeHttp(BaseCase):
         for reponse, motif in cas:
             with self.subTest(motif=motif), patch(POST_CLAUDE, return_value=reponse), \
                     self.assertRaisesRegex(anthropic_http.ClaudeErreur, motif):
-                anthropic_http.generer_json("cle-secrete", "m", [], {}, "extraction")
+                anthropic_http.envoyer_message("cle-secrete", {"model": "m"}, "étape 1")
 
     def test_tester_cle(self):
         with patch(GET_CLAUDE, return_value=reponse_http(200, {"data": []})) as get:
@@ -197,10 +197,14 @@ class TestControles(BaseCase):
         self.assertEqual(ods.date_fin_periode("2028-02"), date(2028, 2, 29))
         with self.assertRaises(ods.OdSalairesErreur):
             ods.reference_od("2026-13")
-        valeurs = ods.valeurs_move("2026-10", 9, [
-            {"account_id": 101, "libelle": "Brut", "montant": Decimal("10.00"), "sens": "debit"}])
+        valeurs = ods.valeurs_move(9, "2026-10-31", "Salaires 2026-10", [
+            {"account_id": 101, "libelle": "Brut", "debit": Decimal("10.00"), "credit": 0,
+             "partner_id": 0},
+            {"account_id": 104, "libelle": "ONSS", "debit": 0, "credit": Decimal("10.00"),
+             "partner_id": 7}])
         self.assertEqual(valeurs["move_type"], "entry")
         self.assertEqual(valeurs["date"], "2026-10-31")
         self.assertNotIn("state", valeurs)
-        self.assertEqual(valeurs["line_ids"], [[0, 0, {"account_id": 101, "name": "Brut",
-                                                       "debit": 10.0, "credit": 0.0}]])
+        self.assertEqual(valeurs["line_ids"], [
+            [0, 0, {"account_id": 101, "name": "Brut", "debit": 10.0, "credit": 0.0}],
+            [0, 0, {"account_id": 104, "name": "ONSS", "debit": 0.0, "credit": 10.0, "partner_id": 7}]])

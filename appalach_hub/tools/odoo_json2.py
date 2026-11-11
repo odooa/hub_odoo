@@ -94,32 +94,37 @@ class OdooJson2:
             fields=["id", "code", "name", "account_type"], order="code",
         )
 
-    def journaux_generaux(self):
+    def journaux(self):
         return self.appel(
             "account.journal", "search_read",
-            domain=[["type", "=", "general"]] + self._domaine_societe("company_id"),
-            fields=["id", "code", "name"], order="code",
+            domain=self._domaine_societe("company_id"),
+            fields=["id", "code", "name", "type"], order="code",
         )
 
-    def historique_salaires(self, limite=6):
-        """Dernières OD de salaires comptabilisées : écritures des journaux généraux touchant
-        un compte 62* ou dont la référence contient « salaire ». Renvoie (écritures, lignes)."""
-        ecritures = self.appel(
+    def ecritures(self, domaine, limite, ordre="date desc, id desc"):
+        """Écritures de la société retenue ; ``domaine`` est construit par le code du hub."""
+        return self.appel(
             "account.move", "search_read",
-            domain=[["move_type", "=", "entry"], ["state", "=", "posted"],
-                    ["journal_id.type", "=", "general"]] + self._domaine_societe("company_id") + [
-                    "|", ["line_ids.account_id.code", "=like", "62%"], ["ref", "ilike", "salaire"]],
-            fields=["id", "name", "ref", "date", "journal_id"],
-            order="date desc, id desc", limit=limite,
+            domain=list(domaine) + self._domaine_societe("company_id"),
+            fields=["id", "name", "ref", "date", "journal_id", "state", "amount_total"],
+            order=ordre, limit=limite,
         )
-        if not ecritures:
-            return [], []
-        lignes = self.appel(
+
+    def lignes_ecritures(self, move_ids, limite=500):
+        return self.appel(
             "account.move.line", "search_read",
-            domain=[["move_id", "in", [e["id"] for e in ecritures]]],
-            fields=["move_id", "account_id", "name", "debit", "credit"], order="move_id, id",
+            domain=[["move_id", "in", list(move_ids)]],
+            fields=["move_id", "account_id", "name", "debit", "credit", "partner_id"],
+            order="move_id, id", limit=limite,
         )
-        return ecritures, lignes
+
+    def partenaires(self, domaine, limite):
+        return self.appel(
+            "res.partner", "search_read",
+            domain=list(domaine) + ["|", ["company_id", "=", False]]
+                   + (self._domaine_societe("company_id") or [["company_id", "!=", False]]),
+            fields=["id", "name", "vat", "ref"], order="name", limit=limite,
+        )
 
     def od_existante(self, reference):
         # Une OD annulée ne bloque pas ; brouillon ou comptabilisée bloque.

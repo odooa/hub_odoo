@@ -103,6 +103,8 @@ class HubDossier(models.Model):
              "d'historique, pas le libellé de ligne (qui peut contenir des noms de travailleurs).",
     )
     mapping_ids = fields.One2many("hub.mapping", "dossier_id", "Mappings")
+    run_ids = fields.One2many("hub.run", "dossier_id", "Exécutions")
+    run_count = fields.Integer("Nombre d'exécutions", compute="_compute_run_count")
     fait_ids = fields.One2many("hub.fait", "dossier_id", "Faits")
     fait_count = fields.Integer("Nombre de faits", compute="_compute_fait_count")
     note = fields.Html("Notes")
@@ -136,6 +138,25 @@ class HubDossier(models.Model):
         comptes = {dossier.id: nombre for dossier, nombre in donnees}
         for dossier in self:
             dossier.fait_count = comptes.get(dossier.id, 0)
+
+    @api.depends("run_ids")
+    def _compute_run_count(self):
+        donnees = self.env["hub.run"]._read_group(
+            [("dossier_id", "in", self.ids)], ["dossier_id"], ["__count"]
+        )
+        comptes = {dossier.id: nombre for dossier, nombre in donnees}
+        for dossier in self:
+            dossier.run_count = comptes.get(dossier.id, 0)
+
+    def action_voir_runs(self):
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Exécutions"),
+            "res_model": "hub.run",
+            "view_mode": "list,form",
+            "domain": [("dossier_id", "=", self.id)],
+        }
 
     def action_voir_faits(self):
         self.ensure_one()

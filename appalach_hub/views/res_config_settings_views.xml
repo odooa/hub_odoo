@@ -13,6 +13,19 @@
                                  help="Défaut : claude-sonnet-5-5 (ex. claude-opus-5-5 pour les cas difficiles)">
                             <field name="hub_claude_modele"/>
                         </setting>
+                        <setting id="hub_agent_limites" string="Limites de l'agent"
+                                 help="Par exécution : appels au modèle et tokens cumulés (entrée, cache compris, et sortie)">
+                            <div class="content-group">
+                                <div class="row mt8">
+                                    <label for="hub_agent_max_etapes" class="col-lg-5 o_light_label"/>
+                                    <field name="hub_agent_max_etapes"/>
+                                </div>
+                                <div class="row">
+                                    <label for="hub_agent_budget_tokens" class="col-lg-5 o_light_label"/>
+                                    <field name="hub_agent_budget_tokens"/>
+                                </div>
+                            </div>
+                        </setting>
                         <setting id="hub_anthropic_cle" string="Clé API Anthropic"
                                  help="Écriture seule : testée, chiffrée, jamais relisible">
                             <field name="hub_anthropic_definie" invisible="1"/>

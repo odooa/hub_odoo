@@ -3,6 +3,9 @@ from odoo import _, api, fields, models
 from .hub_secrets import SECRETS_GLOBAUX
 
 MODELE_PAR_DEFAUT = "claude-sonnet-5-5"
+MODELES = [("claude-sonnet-5-5", "Claude Sonnet 5.5"), ("claude-opus-5-5", "Claude Opus 5.5")]
+ETAPES_PAR_DEFAUT = 20
+BUDGET_PAR_DEFAUT = 400000
 
 
 class ResConfigSettings(models.TransientModel):
@@ -10,6 +13,14 @@ class ResConfigSettings(models.TransientModel):
 
     hub_claude_modele = fields.Char(
         "Modèle Claude", config_parameter="appalach_hub.claude_modele", default=MODELE_PAR_DEFAUT,
+    )
+    hub_agent_max_etapes = fields.Integer(
+        "Étapes maximum de l'agent", config_parameter="appalach_hub.agent_max_etapes",
+        default=ETAPES_PAR_DEFAUT,
+    )
+    hub_agent_budget_tokens = fields.Integer(
+        "Budget de tokens par exécution", config_parameter="appalach_hub.agent_budget_tokens",
+        default=BUDGET_PAR_DEFAUT,
     )
     hub_nextcloud_url = fields.Char("URL Nextcloud", config_parameter="appalach_hub.nextcloud_url")
     hub_nextcloud_user = fields.Char(
