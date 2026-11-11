@@ -78,7 +78,7 @@ class TestClaudeHttp(BaseCase):
 
 
 PROPFIND = b"""<?xml version="1.0"?>
-<d:multistatus xmlns:d="DAV:">
+<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
   <d:response><d:href>/remote.php/dav/files/agent/clients/test/salaires/</d:href>
     <d:propstat><d:prop><d:getlastmodified>Mon, 09 Nov 2026 10:00:00 GMT</d:getlastmodified>
     <d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response>
@@ -87,7 +87,7 @@ PROPFIND = b"""<?xml version="1.0"?>
     <d:resourcetype/></d:prop></d:propstat></d:response>
   <d:response><d:href>/remote.php/dav/files/agent/clients/test/salaires/recap-2026-10.pdf</d:href>
     <d:propstat><d:prop><d:getlastmodified>Wed, 04 Nov 2026 08:00:00 GMT</d:getlastmodified>
-    <d:resourcetype/></d:prop></d:propstat></d:response>
+    <d:resourcetype/><oc:fileid>4242</oc:fileid></d:prop></d:propstat></d:response>
   <d:response><d:href>/remote.php/dav/files/agent/clients/test/salaires/notes.txt</d:href>
     <d:propstat><d:prop><d:getlastmodified>Thu, 05 Nov 2026 08:00:00 GMT</d:getlastmodified>
     <d:resourcetype/></d:prop></d:propstat></d:response>
@@ -102,6 +102,11 @@ class TestNextcloud(BaseCase):
                    return_value=reponse_http(207, contenu=PROPFIND)) as requete:
             fichier = nc.pdf_le_plus_recent("/clients/test/salaires")
         self.assertEqual(fichier.nom, "recap-2026-10.pdf")
+        self.assertEqual(nc.lien(fichier, "/clients/test/salaires"), "https://nc.invalid/f/4242")
+        sans_id = fichier._replace(fileid=None)
+        self.assertEqual(nc.lien(sans_id, "/clients/test/salaires"),
+                         "https://nc.invalid/apps/files/?dir=/clients/test/salaires")
+        self.assertIn(b"oc:fileid", requete.call_args.kwargs["data"].encode())
         self.assertEqual(requete.call_args.args[:2], (
             "PROPFIND", "https://nc.invalid/remote.php/dav/files/agent/clients/test/salaires/"))
         self.assertEqual(requete.call_args.kwargs["headers"]["Depth"], "1")

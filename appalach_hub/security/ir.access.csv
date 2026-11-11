@@ -23,3 +23,13 @@ access_hub_run_ligne_moteur,hub.run.ligne moteur,hub.run.ligne,appalach_hub.grou
 access_hub_run_etape_comptable,hub.run.etape comptable (ses dossiers),hub.run.etape,appalach_hub.group_hub_comptable,r,"['|', ('run_id.user_id', '=', user.id), ('run_id.dossier_id.comptable_ids', 'in', [user.id])]"
 access_hub_run_etape_gestionnaire,hub.run.etape gestionnaire,hub.run.etape,appalach_hub.group_hub_gestionnaire,r,
 access_hub_run_etape_moteur,hub.run.etape moteur,hub.run.etape,appalach_hub.group_hub_moteur,r,
+access_hub_dossier_documents_comptable,hub.dossier.documents comptable,hub.dossier.documents,appalach_hub.group_hub_comptable,r,
+access_hub_dossier_documents_moteur,hub.dossier.documents moteur,hub.dossier.documents,appalach_hub.group_hub_moteur,r,
+access_hub_documents_config_wizard_gestionnaire,hub.documents.config.wizard gestionnaire,hub.documents.config.wizard,appalach_hub.group_hub_gestionnaire,cru,
+hub_documents_config_wizard_own,hub.documents.config.wizard : ses propres assistants,hub.documents.config.wizard,,cru,"[('create_uid', '=', user.id)]"
+access_hub_documents_copie_dossier_gestionnaire,hub.documents.copie.dossier gestionnaire,hub.documents.copie.dossier,appalach_hub.group_hub_gestionnaire,crud,
+hub_documents_copie_dossier_own,hub.documents.copie.dossier : ses propres copies,hub.documents.copie.dossier,,crud,"[('create_uid', '=', user.id)]"
+access_hub_documents_copie_etiquette_gestionnaire,hub.documents.copie.etiquette gestionnaire,hub.documents.copie.etiquette,appalach_hub.group_hub_gestionnaire,crud,
+hub_documents_copie_etiquette_own,hub.documents.copie.etiquette : ses propres copies,hub.documents.copie.etiquette,,crud,"[('create_uid', '=', user.id)]"
+access_hub_documents_copie_piece_comptable,hub.documents.copie.piece comptable,hub.documents.copie.piece,appalach_hub.group_hub_comptable,crud,
+hub_documents_copie_piece_own,hub.documents.copie.piece : ses propres copies,hub.documents.copie.piece,,crud,"[('create_uid', '=', user.id)]"

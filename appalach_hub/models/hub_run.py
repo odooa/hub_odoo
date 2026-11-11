@@ -10,7 +10,7 @@ from odoo.exceptions import AccessError, UserError
 
 from ..tools import od_salaires as ods
 from ..tools.agent import Agent, AgentErreur, etat_initial
-from ..tools.agent_outils import OutilsOdSalaires
+from ..tools.agent_outils import SOURCE_DOCUMENTS, SOURCE_PDF, OutilsOdSalaires
 from ..tools.anthropic_http import ClaudeErreur, envoyer_message
 from ..tools.nextcloud import NextcloudErreur
 from ..tools.odoo_json2 import OdooClientErreur
@@ -29,6 +29,11 @@ ETATS = [
     ("echec", "Échec"),
 ]
 ETATS_FINAUX = ("od_creee", "rejete", "echec")
+SOURCES = [("nextcloud", "Nextcloud"), ("documents", "Documents Odoo"), ("fichier", "Fichier déposé")]
+STATUTS_PIECE = [
+    ("jointe", "PDF joint à l'OD"), ("liee", "Liée à l'OD"),
+    ("liee_traitee", "Liée à l'OD et marquée traitée"), ("avertissement", "À vérifier"),
+]
 ORIGINES = [
     ("mapping", "Mapping"), ("historique", "Historique"), ("pcmn", "PCMN"), ("manuel", "Manuel"),
 ]
@@ -59,7 +64,17 @@ class HubRun(models.Model):
     nb_etapes = fields.Integer("Appels au modèle", readonly=True)
     tokens_entree = fields.Integer("Tokens en entrée", readonly=True)
     tokens_sortie = fields.Integer("Tokens en sortie", readonly=True)
+    source = fields.Selection(SOURCES, "Source de la pièce", default="fichier", required=True,
+                              readonly=True)
     pdf_nom = fields.Char("PDF", readonly=True)
+    # Traçabilité de la pièce (Documents : connue quand l'agent la lit / la propose).
+    piece_nom = fields.Char("Pièce", readonly=True)
+    piece_date = fields.Datetime("Date de la pièce", readonly=True)
+    piece_lien = fields.Char("Lien vers la pièce", readonly=True)
+    piece_document_id = fields.Integer("ID du document (Documents)", readonly=True)
+    piece_imposee_id = fields.Integer("Pièce imposée (ID Documents)", readonly=True)
+    piece_statut = fields.Selection(STATUTS_PIECE, "Pièce après création", readonly=True)
+    piece_avertissement = fields.Text("Avertissement sur la pièce", readonly=True)
     periode_demandee = fields.Char("Période demandée", readonly=True)
     societe_client_id = fields.Integer("ID de la société du client", readonly=True)
     societe_client_nom = fields.Char("Société du client", readonly=True)
@@ -138,8 +153,13 @@ class HubRun(models.Model):
     # ------------------------------------------------------------------
 
     @api.model
-    def _lancer(self, dossier, pdf, pdf_nom, modele=None, periode=None):
-        """Crée le run (en sudo, après vérification de l'accès au dossier) et réveille le cron."""
+    def _lancer(self, dossier, source, pdf=None, pdf_nom=None, modele=None, periode=None,
+                piece_date=None, piece_lien=None, piece_imposee_id=0):
+        """Crée le run (en sudo, après vérification de l'accès au dossier) et réveille le cron.
+
+        source : nextcloud / fichier (``pdf`` fourni, conservé le temps du run) ou documents
+        (l'agent lit la pièce chez le client ; ``piece_imposee_id`` facultatif).
+        """
         dossier.check_access("read")
         secrets = self.env["hub.secrets"]
         icp = self.env["ir.config_parameter"].sudo()
@@ -149,12 +169,20 @@ class HubRun(models.Model):
             "modele": modele or secrets._parametre("claude_modele") or MODELE_PAR_DEFAUT,
             "max_etapes": icp.get_int("appalach_hub.agent_max_etapes") or ETAPES_PAR_DEFAUT,
             "budget_tokens": icp.get_int("appalach_hub.agent_budget_tokens") or BUDGET_PAR_DEFAUT,
-            "pdf": base64.b64encode(pdf).decode("ascii"),
-            "pdf_nom": pdf_nom,
+            "source": source,
+            "pdf": base64.b64encode(pdf).decode("ascii") if pdf else False,
+            "pdf_nom": pdf_nom or False,
+            "piece_nom": pdf_nom or False,
+            "piece_date": piece_date or False,
+            "piece_lien": piece_lien or False,
+            "piece_imposee_id": piece_imposee_id or 0,
             "periode_demandee": periode or False,
         })
-        dossier._tracer(Markup("<p><b>OD de salaires — agent lancé</b> ({})</p><p>PDF : {}, "
-                               "modèle : {}</p>").format(run.name, pdf_nom, run.modele))
+        piece = pdf_nom or (_("pièce imposée %s", piece_imposee_id) if piece_imposee_id
+                            else _("choisie par l'agent dans Documents"))
+        dossier._tracer(Markup("<p><b>OD de salaires — agent lancé</b> ({})</p><p>Source : {}, "
+                               "pièce : {}, modèle : {}</p>").format(
+            run.name, dict(SOURCES)[source], piece, run.modele))
         self._reveiller_cron()
         return run.sudo(False)
 
@@ -201,24 +229,43 @@ class HubRun(models.Model):
     def _client(self):
         return self.dossier_id._client_odoo(company_id=self.societe_client_id or None)
 
-    def _outils(self, client, etat_outils=None):
+    def _outils(self, client, etat_outils=None, avec_pdf=False):
         mappings = [{"libelle": m.libelle, "compte_code": m.compte_code,
                      "compte_libelle": m.compte_libelle or ""}
                     for m in self.env["hub.mapping"].search([
                         ("dossier_id", "=", self.dossier_id.id), ("tache", "=", self.tache)])]
+        options = {"source": SOURCE_PDF}
+        if self.source == "documents":
+            documents = self.dossier_id._config_documents(self.tache)
+            documents["piece_imposee_id"] = self.piece_imposee_id or None
+            options = {"source": SOURCE_DOCUMENTS, "documents": documents}
+        elif avec_pdf:
+            if not self.pdf:
+                raise UserError(_("PDF de l'exécution introuvable."))
+            options["pdf_b64"] = base64.b64encode(self.pdf.content).decode("ascii")
         return OutilsOdSalaires(client, mappings, anonymiser=self.dossier_id.anonymiser_historique,
-                                etat=etat_outils)
+                                etat=etat_outils, **options)
 
     def _mission(self):
         dossier = self.dossier_id
         periode = (_("Période demandée : %s.", self.periode_demandee) if self.periode_demandee
-                   else _("Période : celle du PDF."))
+                   else _("Période : celle de la pièce."))
+        if self.source == "documents":
+            config = dossier._config_documents(self.tache)
+            piece = _("Les pièces sont dans le dossier Documents « %s » de l'Odoo du client "
+                      "(lister_pieces, lire_piece).", config["dossier_chemin"])
+            if self.piece_imposee_id:
+                piece += " " + _("Le comptable impose la pièce %s.", self.piece_imposee_id)
+        else:
+            piece = _("La pièce est fournie par lire_pdf.")
         return _(
-            "Prépare l'OD de salaires de la période à partir de ce PDF, en suivant la façon "
-            "dont ce dossier encode ses salaires.\nDossier : %(nom)s (%(code)s). Société du "
-            "client : %(societe)s. %(periode)s\nJournal utilisé la dernière fois : %(journal)s.",
-            nom=dossier.name, code=dossier.code, societe=self.societe_client_nom or "?",
-            periode=periode, journal=dossier.od_salaires_journal or _("inconnu"),
+            "Prépare l'OD de salaires de la période à partir de cette pièce, en suivant la façon "
+            "dont ce dossier encode ses salaires.\n%(piece)s\nDossier : %(nom)s (%(code)s). "
+            "Société du client : %(societe)s. %(periode)s\nJournal utilisé la dernière fois : "
+            "%(journal)s.",
+            piece=piece, nom=dossier.name, code=dossier.code,
+            societe=self.societe_client_nom or "?", periode=periode,
+            journal=dossier.od_salaires_journal or _("inconnu"),
         )
 
     def _executer_agent(self):
@@ -235,11 +282,8 @@ class HubRun(models.Model):
             return envoyer_message(cle_claude, corps, f"étape {etat['nb_etapes'] + 1}",
                                    remplacements)
 
-        if not self.pdf:
-            raise UserError(_("PDF de l'exécution introuvable."))
-        pdf_b64 = base64.b64encode(self.pdf.content).decode("ascii")
-        agent = Agent(appeler, self._outils(client, etat.get("outils")), self.modele,
-                      self.max_etapes, self.budget_tokens, pdf_b64, self._noter_etape(etat))
+        agent = Agent(appeler, self._outils(client, etat.get("outils"), avec_pdf=True),
+                      self.modele, self.max_etapes, self.budget_tokens, self._noter_etape(etat))
         if reprise and etat.get("en_attente"):
             resultat = agent.reprendre(etat, self.reponse or "")
         else:
@@ -298,6 +342,7 @@ class HubRun(models.Model):
             "total_brut": float(totaux["brut"]), "total_onss": float(totaux["onss"]),
             "total_precompte": float(totaux["precompte"]), "total_net": float(totaux["net"]),
             "remarques": proposition["remarques"] or False,
+            **self._valeurs_piece(proposition.get("document")),
             "ligne_ids": [(0, 0, {
                 "sequence": numero, "libelle": l["libelle"], "compte_code": l["compte_code"],
                 "compte_nom": l["compte_nom"], "partenaire_id": l["partenaire_id"],
@@ -311,12 +356,20 @@ class HubRun(models.Model):
         origines = Counter(l["origine"] for l in proposition["lignes"])
         self.dossier_id._tracer(Markup(
             "<p><b>OD de salaires — proposition de l'agent</b> ({})</p><ul>"
-            "<li>Période : {}, référence : {}, journal : {}</li>"
+            "<li>Période : {}, référence : {}, journal : {}</li><li>Pièce : {}</li>"
             "<li>{} ligne(s) — mapping {}, historique {}, PCMN {}</li>"
             "<li>{} appel(s) au modèle, {} tokens</li></ul><p>À valider dans l'exécution.</p>"
-        ).format(self.name, self.periode, self.reference, self.journal_code,
+        ).format(self.name, self.periode, self.reference, self.journal_code, self.piece_nom or "?",
                  len(proposition["lignes"]), origines["mapping"], origines["historique"],
                  origines["pcmn"], self.nb_etapes, self.tokens_entree + self.tokens_sortie))
+
+    @staticmethod
+    def _valeurs_piece(document):
+        if not document:
+            return {}
+        return {"piece_document_id": document["id"], "piece_nom": document["nom"],
+                "piece_date": document.get("date") or False,
+                "piece_lien": document.get("lien") or False}
 
     def _echouer(self, message):
         self.env["hub.run.etape"].sudo().create({
@@ -394,6 +447,7 @@ class HubRun(models.Model):
                 "debit": l.debit, "credit": l.credit, "categorie": l.categorie,
                 "origine": l.origine,
             } for l in self.ligne_ids],
+            "document_id": self.piece_document_id,
         }, origines=False)
         if doublon:
             raise UserError(doublon)
@@ -406,9 +460,8 @@ class HubRun(models.Model):
             [{"account_id": l["compte_client_id"], "libelle": l["libelle"], "debit": l["debit"],
               "credit": l["credit"], "partner_id": l["partenaire_id"]} for l in lignes],
         ))
-        if self.pdf:
-            client.joindre_pdf(move_id, self.pdf_nom or f"{self.reference}.pdf", self.pdf.content)
         lien = client.lien("account.move", move_id)
+        statut, avertissement = self._rattacher_piece(client, move_id, proposition.get("document"))
 
         # Mappings validés alimentés par l'OD créée.
         Mapping = self.env["hub.mapping"]
@@ -421,16 +474,44 @@ class HubRun(models.Model):
             self.dossier_id.od_salaires_journal = self.journal_code
 
         total = sum((l["debit"] for l in lignes), ods.ZERO)
-        self.write({"etat": "od_creee", "move_id_client": move_id, "move_lien": lien})
+        self.write({"etat": "od_creee", "move_id_client": move_id, "move_lien": lien,
+                    "piece_statut": statut, "piece_avertissement": avertissement or False})
         self._purger()
         self.dossier_id._tracer(Markup(
             "<p><b>OD de salaires — créée en brouillon</b> ({})</p><ul>"
             "<li>Référence : {} (id {} dans l'Odoo du client) — <a href=\"{}\" target=\"_blank\">"
             "ouvrir</a></li><li>Journal : {}</li><li>Total : {} €, {} lignes</li>"
-            "<li>Validée par : {}</li></ul><p>Non comptabilisée : à valider dans l'Odoo du "
-            "client.</p>"
+            "<li>Pièce : {} — {}</li><li>Validée par : {}</li></ul>"
+            "<p>Non comptabilisée : à valider dans l'Odoo du client.</p>{}"
         ).format(self.name, self.reference, move_id, lien, self.journal_code, ods.euros(total),
-                 len(lignes), self.env.user.name))
+                 len(lignes), self.piece_nom or "?", dict(STATUTS_PIECE)[statut],
+                 self.env.user.name,
+                 Markup("<p><b>⚠ {}</b></p>").format(avertissement) if avertissement else ""))
+
+    def _rattacher_piece(self, client, move_id, document):
+        """Après création de l'OD : PDF joint (Nextcloud, fichier) ou document existant lié
+        puis marqué traité (Documents). L'OD existe déjà chez le client : un échec ici ne
+        l'annule pas, il est signalé. Renvoie (statut, avertissement)."""
+        if self.source != "documents":
+            if not self.pdf:
+                return "avertissement", _("PDF de l'exécution introuvable : non joint à l'OD.")
+            try:
+                client.joindre_pdf(move_id, self.pdf_nom or f"{self.reference}.pdf",
+                                   self.pdf.content)
+            except OdooClientErreur as erreur:
+                return "avertissement", _("PDF non joint à l'OD : %s", erreur)
+            return "jointe", None
+        try:
+            client.lier_document(document["id"], document.get("attachment_id"), move_id)
+        except OdooClientErreur as erreur:
+            return "avertissement", _("Pièce non liée à l'OD : %s", erreur)
+        config = self.dossier_id._config_documents(self.tache)
+        try:
+            client.marquer_document(document["id"], etiquette_id=config["etiquette_traite_id"],
+                                    dossier_id=config["dossier_traite_id"])
+        except OdooClientErreur as erreur:
+            return "avertissement", _("Pièce liée mais non marquée traitée : %s", erreur)
+        return "liee_traitee", None
 
 
 class HubRunLigne(models.Model):

@@ -2,13 +2,14 @@
 
 L'état de la conversation (``etat``) est un dict sérialisable en JSON, conservé par le hub
 entre deux reprises (question au comptable). Le PDF n'y figure pas : il est remplacé par un
-marqueur, substitué à l'envoi. Les blocs de réflexion sont renvoyés tels quels.
+marqueur, substitué à l'envoi
+(contenus fournis par les outils : PDF du hub ou pièces relues chez le client). Les blocs de réflexion sont renvoyés tels quels.
 """
 
 import copy
 import time
 
-from .agent_outils import CONSIGNE_SYSTEME, DEFINITIONS, MARQUEUR_PDF, RELANCE
+from .agent_outils import CONSIGNE_SYSTEME, RELANCE
 
 MAX_TOKENS_APPEL = 16000
 CACHE = {"type": "ephemeral"}
@@ -49,13 +50,12 @@ class Agent:
     outils : OutilsOdSalaires ; noter(**etape) : enregistre une étape dans le hub.
     """
 
-    def __init__(self, appeler, outils, modele, max_etapes, budget_tokens, pdf_b64, noter):
+    def __init__(self, appeler, outils, modele, max_etapes, budget_tokens, noter):
         self.appeler = appeler
         self.outils = outils
         self.modele = modele
         self.max_etapes = max_etapes
         self.budget_tokens = budget_tokens
-        self.pdf_b64 = pdf_b64
         self.noter = noter
 
     def _corps(self, messages):
@@ -70,7 +70,7 @@ class Agent:
             "model": self.modele,
             "max_tokens": MAX_TOKENS_APPEL,
             "system": [{"type": "text", "text": CONSIGNE_SYSTEME, "cache_control": CACHE}],
-            "tools": DEFINITIONS,
+            "tools": self.outils.definitions(),
             "tool_choice": {"type": "auto"},
             "thinking": {"type": "adaptive", "display": "summarized"},
             "messages": envoyes,
@@ -97,9 +97,7 @@ class Agent:
         Renvoie {"type": "question", ...} ou {"type": "proposition", "proposition": ...} ;
         lève AgentErreur (limite, budget, doublon, fin sans outil final) ou ClaudeErreur.
         """
-        self.outils.etat = etat.setdefault("outils", {})
-        self.outils.etat.setdefault("ecritures_lues", [])
-        self.outils.etat.setdefault("pdf_fourni", False)
+        self.outils.attacher_etat(etat.setdefault("outils", {}))
         while True:
             if etat["nb_etapes"] >= self.max_etapes:
                 raise AgentErreur(f"Limite de {self.max_etapes} étapes atteinte sans proposition.")
@@ -108,7 +106,7 @@ class Agent:
                 raise AgentErreur(f"Budget de {self.budget_tokens} tokens épuisé "
                                   f"({consommes} consommés) sans proposition.")
             debut = time.monotonic()
-            message = self.appeler(self._corps(etat["messages"]), {MARQUEUR_PDF: self.pdf_b64})
+            message = self.appeler(self._corps(etat["messages"]), self.outils.remplacements())
             duree = time.monotonic() - debut
             entree, sortie = tokens_utilises(message.get("usage"))
             etat["nb_etapes"] += 1

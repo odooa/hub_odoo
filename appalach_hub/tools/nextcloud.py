@@ -9,7 +9,8 @@ import requests
 
 TIMEOUT = 30
 
-FichierDistant = namedtuple("FichierDistant", "nom chemin modifie_le")
+FichierDistant = namedtuple("FichierDistant", "nom chemin modifie_le fileid", defaults=(None,))
+NS = {"d": "DAV:", "oc": "http://owncloud.org/ns"}
 
 
 class NextcloudErreur(Exception):
@@ -29,8 +30,8 @@ class Nextcloud:
 
     def _propfind(self, url, profondeur):
         corps = (
-            '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop>'
-            "<d:getlastmodified/><d:resourcetype/></d:prop></d:propfind>"
+            '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
+            "<d:prop><d:getlastmodified/><d:resourcetype/><oc:fileid/></d:prop></d:propfind>"
         )
         try:
             reponse = requests.request(
@@ -57,6 +58,13 @@ class Nextcloud:
             raise NextcloudErreur(f"Aucun PDF dans {dossier} sur Nextcloud.")
         return max(pdfs, key=lambda f: f.modifie_le)
 
+    def lien(self, fichier, dossier):
+        """Lien direct <url>/f/<fileid> si Nextcloud a renvoyé oc:fileid, sinon le dossier
+        dans l'application Fichiers."""
+        if fichier.fileid:
+            return f"{self.url}/f/{fichier.fileid}"
+        return f"{self.url}/apps/files/?dir=/{quote((dossier or '').strip('/'))}"
+
     def telecharger(self, fichier):
         try:
             reponse = requests.get(f"{self.url}{fichier.chemin}", auth=self.auth, timeout=TIMEOUT)
@@ -68,7 +76,7 @@ class Nextcloud:
 
 
 def lire_propfind(contenu):
-    ns = {"d": "DAV:"}
+    ns = NS
     fichiers = []
     try:
         racine = ET.fromstring(contenu)
@@ -87,5 +95,6 @@ def lire_propfind(contenu):
             nom=unquote(chemin.rstrip("/").rsplit("/", 1)[-1]),
             chemin=chemin,
             modifie_le=parsedate_to_datetime(modifie),
+            fileid=(prop.findtext("oc:fileid", default="", namespaces=ns) or "").strip() or None,
         ))
     return fichiers

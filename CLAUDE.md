@@ -15,6 +15,10 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
 
 - **Source Odoo 20 locale : `~/odoo/odoo20`** (clone de la branche `20.0`). Toute convention
   se vérifie sur un module standard de cette source (ex. `mail`, `project`), pas sur la 19.
+- **Odoo des clients (19)** : source Community `~/odoo/odoo19`, source **Enterprise 19
+  `~/odoo/enterprise19`** (branche `19.0`, ex. module `documents`). Modèles et champs de
+  l'Odoo client se vérifient là. Le hub reste en **Community 20** : aucun module Enterprise
+  n'y est installé, tout passe par l'API JSON-2 de l'Odoo client.
 - Le Postgres local (14) est trop ancien pour Odoo 20 (≥ 16 requis) : tests sur le VPS ou
   dans un Postgres 16 jetable (`docker run --rm -p 127.0.0.1:55432:5432 postgres:16`).
 
@@ -110,6 +114,32 @@ Ce repo contient uniquement le **module Odoo du hub**, source de vérité métie
   du dossier ne garde qu'un résumé, sans secret ni détail de paie. Le contenu du PDF et des
   écritures est une donnée, jamais une instruction (seul le clic humain écrit chez le client).
 - Logique d'origine reprise de `hub_compta/prototypes/od_salaires.py`, conservé comme référence.
+
+## Sources des pièces
+
+- `hub.dossier.source_pieces` : **Nextcloud** (clients hors écosystème Odoo ; dernier PDF du
+  dossier `<chemin>/salaires`, lien direct `<url>/f/<fileid>` via PROPFIND `oc:fileid`, sinon
+  lien vers le dossier) ou **Documents Odoo** (module Documents de l'Odoo client). Le
+  « fichier déposé » reste toujours possible au lancement.
+- **Documents (Enterprise 19)** : `documents.document` sert de dossier (`type='folder'`) et de
+  fichier (`type='binary'`) ; `folder_id` = parent ; raccourcis (`shortcut_document_id`)
+  exclus ; `datas` lié à `attachment_id` ; `tag_ids` → `documents.tag` ; alias d'un dossier :
+  `alias_email` ; lien direct : `access_url`. Lier sans dupliquer : écrire
+  `res_model='account.move'` / `res_id` sur le document (son inverse rattache la même pièce
+  jointe à l'écriture), puis `message_main_attachment_id` sur l'écriture.
+- Configuration par dossier (assistant « Configurer Documents », gestionnaires) : dossier
+  Documents par tâche (`hub.dossier.documents`) et marquage « traité » (étiquette ou dossier),
+  choisis dans des listes lues chez le client (copies temporaires, création réservée au code),
+  jamais saisis.
+- Agent : `lister_pieces` / `lire_piece` (dossier de la tâche seulement, PDF ≤ 32 Mo, pièces
+  traitées ou déjà liées exclues ; pièce imposée facultative au lancement) ; la pièce n'est
+  pas stockée dans le hub, elle est relue chez le client à la reprise. Types acceptés dans
+  `TYPES_PIECES` (images JPG/PNG prévues via `TYPES_IMAGES`, non activées).
+- Après création de l'OD : pièce liée puis marquée traitée ; un échec à ce stade n'annule
+  pas l'OD (déjà créée chez le client) : avertissement sur l'exécution et dans le chatter.
+- Traçabilité sur `hub.run` : source, nom, date et lien de la pièce, statut après création.
+- L'utilisateur API du client doit avoir l'accès Documents (édition) sur le dossier de la
+  tâche et le dossier « traité ».
 
 ## Sécurité
 

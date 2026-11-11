@@ -55,6 +55,12 @@ class FauxOdooClient:
         self.societes = {3: "Autre société fictive"}
         self.historique_ecritures = []
         self.historique_lignes = []
+        # Documents (Enterprise) : dossiers, étiquettes, pièces, contenus base64.
+        self.dossiers_documents = []
+        self.etiquettes = []
+        self.pieces = []
+        self.contenus = {}
+        self.echec_marquage = False
 
     def ajouter_historique(self, nom, date, lignes):
         """lignes : (account_id, libellé, débit, crédit[, partner_id])."""
@@ -82,6 +88,8 @@ class FauxOdooClient:
         corps = json.loads(data)
         self.appels.append((modele, methode, corps, headers))
         domaine = corps.get("domain") or []
+        if modele == "documents.document" or (modele, methode) == ("documents.tag", "search_read"):
+            return self._documents(modele, methode, corps, domaine)
         if (modele, methode) == ("account.move", "search_read"):
             ecritures = self.historique_ecritures
             if (nom := self._filtre(domaine, "name", "=")) is not None:
@@ -105,11 +113,35 @@ class FauxOdooClient:
             ("account.journal", "search_read"): self.journaux,
             ("account.move", "search_count"): self.nb_existantes,
             ("account.move", "create"): [42],
+            ("account.move", "write"): True,
             ("ir.attachment", "create"): [7],
         }
         if (modele, methode) not in resultats:
             return reponse_http(404, {"name": "NotFound", "message": methode})
         return reponse_http(200, resultats[(modele, methode)])
+
+    def _documents(self, modele, methode, corps, domaine):
+        if modele == "documents.tag":
+            return reponse_http(200, self.etiquettes)
+        if methode == "read":
+            return reponse_http(200, [{"id": i, "datas": self.contenus.get(i)} for i in corps["ids"]])
+        if methode == "write":
+            if self.echec_marquage and ({"tag_ids", "folder_id"} & set(corps["vals"])):
+                return reponse_http(403, {"name": "odoo.exceptions.AccessError",
+                                          "message": "Accès refusé (fictif)"})
+            return reponse_http(200, True)
+        if self._filtre(domaine, "type", "=") == "folder":
+            return reponse_http(200, self.dossiers_documents)
+        pieces = self.pieces
+        if (ident := self._filtre(domaine, "id", "=")) is not None:
+            pieces = [p for p in pieces if p["id"] == ident]
+        if (dossier := self._filtre(domaine, "folder_id", "=")) is not None:
+            pieces = [p for p in pieces if (p["folder_id"] or [None])[0] == dossier]
+        if (exclues := self._filtre(domaine, "tag_ids", "not in")) is not None:
+            pieces = [p for p in pieces if not set(p["tag_ids"]) & set(exclues)]
+        if (types := self._filtre(domaine, "mimetype", "in")) is not None:
+            pieces = [p for p in pieces if p["mimetype"] in types]
+        return reponse_http(200, pieces[:corps.get("limit") or None])
 
     def methodes(self):
         return [(m, meth) for m, meth, _c, _h in self.appels]

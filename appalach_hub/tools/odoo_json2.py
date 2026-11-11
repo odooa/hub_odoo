@@ -126,6 +126,69 @@ class OdooJson2:
             fields=["id", "name", "vat", "ref"], order="name", limit=limite,
         )
 
+    # ------------------------------------------------------------------
+    # Documents (Enterprise 19, module documents) : documents.document sert à la fois de
+    # dossier (type folder) et de fichier (type binary) ; raccourcis exclus.
+    # ------------------------------------------------------------------
+
+    CHAMPS_PIECE = ["id", "name", "folder_id", "mimetype", "file_size", "tag_ids", "res_model",
+                    "res_id", "create_date", "access_url", "attachment_id"]
+
+    def _domaine_societe_documents(self):
+        if not self.company_id:
+            return []
+        return ["|", ["company_id", "=", False], ["company_id", "=", self.company_id]]
+
+    def dossiers_documents(self):
+        return self.appel(
+            "documents.document", "search_read",
+            domain=[["type", "=", "folder"], ["shortcut_document_id", "=", False]]
+                   + self._domaine_societe_documents(),
+            fields=["id", "name", "folder_id", "alias_email"], order="name", limit=2000,
+        )
+
+    def etiquettes_documents(self):
+        return self.appel("documents.tag", "search_read", domain=[],
+                          fields=["id", "name"], order="sequence, name", limit=2000)
+
+    def pieces(self, domaine, limite):
+        return self.appel(
+            "documents.document", "search_read",
+            domain=[["type", "=", "binary"], ["shortcut_document_id", "=", False]] + list(domaine)
+                   + self._domaine_societe_documents(),
+            fields=self.CHAMPS_PIECE, order="create_date desc, id desc", limit=limite,
+        )
+
+    def piece(self, document_id):
+        trouvees = self.pieces([["id", "=", int(document_id)]], 1)
+        return trouvees[0] if trouvees else None
+
+    def contenu_piece(self, document_id):
+        """Contenu du document en base64 (champ datas, lié à la pièce jointe)."""
+        lu = self.appel("documents.document", "read", ids=[int(document_id)], fields=["datas"])
+        if not lu or not lu[0].get("datas"):
+            raise OdooClientErreur(f"Document {document_id} : contenu illisible.")
+        return lu[0]["datas"]
+
+    def lier_document(self, document_id, attachment_id, move_id):
+        """Rattache la pièce existante à l'écriture, sans la dupliquer : l'inverse de
+        res_model/res_id déplace la même pièce jointe sur l'écriture ; le document reste dans
+        Documents."""
+        self.appel("documents.document", "write", ids=[int(document_id)],
+                   vals={"res_model": "account.move", "res_id": int(move_id)})
+        if attachment_id:
+            self.appel("account.move", "write", ids=[int(move_id)],
+                       vals={"message_main_attachment_id": int(attachment_id)})
+
+    def marquer_document(self, document_id, etiquette_id=None, dossier_id=None):
+        vals = {}
+        if etiquette_id:
+            vals["tag_ids"] = [[4, int(etiquette_id)]]
+        if dossier_id:
+            vals["folder_id"] = int(dossier_id)
+        if vals:
+            self.appel("documents.document", "write", ids=[int(document_id)], vals=vals)
+
     def od_existante(self, reference):
         # Une OD annulée ne bloque pas ; brouillon ou comptabilisée bloque.
         return self.appel(

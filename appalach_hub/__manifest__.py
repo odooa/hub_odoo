@@ -1,7 +1,7 @@
 {
     "name": "Hub comptable Appalach",
     "summary": "Dossiers clients, faits, mappings et agent OD de salaires",
-    "version": "20.0.2.0.0",
+    "version": "20.0.3.0.0",
     "category": "Accounting",
     "author": "Appalach",
     "website": "https://www.appalach.be",
@@ -20,6 +20,7 @@
         "wizard/hub_dossier_cle_wizard_views.xml",
         "wizard/hub_parametre_secret_wizard_views.xml",
         "wizard/hub_od_salaires_wizard_views.xml",
+        "wizard/hub_documents_config_wizard_views.xml",
         "views/hub_menus.xml",
     ],
     "application": True,

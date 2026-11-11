@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hub_documents_config_wizard_view_form" model="ir.ui.view">
+        <field name="name">hub.documents.config.wizard.form</field>
+        <field name="model">hub.documents.config.wizard</field>
+        <field name="arch" type="xml">
+            <form>
+                <field name="dossier_id" invisible="1"/>
+                <p class="text-muted">
+                    Listes lues dans le module Documents de l'Odoo du client
+                    (<field name="societe_client_nom" class="oe_inline"/>). Le hub n'y crée
+                    rien : créez d'abord le dossier ou l'étiquette chez le client si besoin.
+                </p>
+                <group>
+                    <field name="dossier_od_salaires_id" required="1"
+                           options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"/>
+                    <field name="traitement" widget="radio"/>
+                    <field name="etiquette_traite_id" invisible="traitement != 'etiquette'"
+                           required="traitement == 'etiquette'"
+                           options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"/>
+                    <field name="dossier_traite_id" invisible="traitement != 'dossier'"
+                           required="traitement == 'dossier'"
+                           options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"/>
+                </group>
+                <footer>
+                    <button name="action_valider" type="object" string="Enregistrer" class="btn-primary"/>
+                    <button special="cancel" string="Annuler"/>
+                </footer>
+            </form>
+        </field>
+    </record>
+</odoo>

@@ -68,6 +68,25 @@ class HubDossier(models.Model):
     nextcloud_path = fields.Char(
         "Chemin Nextcloud", tracking=True, help="Ex. /clients/appalach"
     )
+    source_pieces = fields.Selection(
+        [("nextcloud", "Nextcloud"), ("documents", "Documents Odoo")], "Source des pièces",
+        default="nextcloud", required=True, tracking=True,
+        help="Nextcloud : clients hors écosystème Odoo. Documents Odoo : module Documents "
+             "(Enterprise) de l'Odoo du client, lu et mis à jour par l'API JSON-2.",
+    )
+    # Configuration Documents : choisie dans des listes lues chez le client (assistant
+    # « Configurer Documents »), jamais saisie à la main.
+    documents_dossier_ids = fields.One2many(
+        "hub.dossier.documents", "dossier_id", "Dossiers Documents par tâche", readonly=True
+    )
+    documents_traitement = fields.Selection(
+        [("etiquette", "Ajouter une étiquette"), ("dossier", "Déplacer dans un dossier")],
+        "Pièce traitée", readonly=True, tracking=True,
+    )
+    documents_etiquette_traite_id = fields.Integer("ID de l'étiquette « traité »", readonly=True)
+    documents_etiquette_traite_nom = fields.Char("Étiquette « traité »", readonly=True, tracking=True)
+    documents_dossier_traite_id = fields.Integer("ID du dossier « traité »", readonly=True)
+    documents_dossier_traite_nom = fields.Char("Dossier « traité »", readonly=True, tracking=True)
     comptable_ids = fields.Many2many(
         "res.users",
         "hub_dossier_comptable_rel",
@@ -112,17 +131,28 @@ class HubDossier(models.Model):
     _code_uniq = models.Constraint("UNIQUE (code)", "Le code du dossier doit être unique.")
 
     _CHAMPS_CLE_API = {"cle_api_chiffree", "cle_api_empreinte", "cle_api_date", "cle_api_user_id"}
+    _CHAMPS_DOCUMENTS = {
+        "documents_dossier_ids", "documents_traitement", "documents_etiquette_traite_id",
+        "documents_etiquette_traite_nom", "documents_dossier_traite_id",
+        "documents_dossier_traite_nom",
+    }
 
     def write(self, vals):
         # Les champs de la clé ne se modifient que par _definir_cle_api (en sudo).
         if not self.env.su and self._CHAMPS_CLE_API & set(vals):
             raise AccessError(_("La clé API se modifie uniquement par le bouton dédié."))
+        if not self.env.su and self._CHAMPS_DOCUMENTS & set(vals):
+            raise AccessError(_("La configuration Documents se modifie uniquement par "
+                                "l'assistant « Configurer Documents »."))
         return super().write(vals)
 
     @api.model_create_multi
     def create(self, vals_list):
         if not self.env.su and any(self._CHAMPS_CLE_API & set(vals) for vals in vals_list):
             raise AccessError(_("La clé API se définit uniquement par le bouton dédié."))
+        if not self.env.su and any(self._CHAMPS_DOCUMENTS & set(vals) for vals in vals_list):
+            raise AccessError(_("La configuration Documents se définit uniquement par "
+                                "l'assistant « Configurer Documents »."))
         return super().create(vals_list)
 
     @api.depends("cle_api_chiffree")
@@ -185,9 +215,9 @@ class HubDossier(models.Model):
     # Clé API
     # ------------------------------------------------------------------
 
-    def _verifier_gestionnaire(self):
+    def _verifier_gestionnaire(self, message=None):
         if not self.env.su and not self.env.user.has_group(GROUPE_GESTIONNAIRE):
-            raise AccessError(_("Seul un gestionnaire du hub peut définir la clé API."))
+            raise AccessError(message or _("Seul un gestionnaire du hub peut définir la clé API."))
 
     def _definir_cle_api(self, cle):
         """Chiffre la clé, la teste sur l'Odoo du dossier et ne stocke que le chiffré.
@@ -253,6 +283,40 @@ class HubDossier(models.Model):
         return client
 
     # ------------------------------------------------------------------
+    # Documents (Odoo du client)
+    # ------------------------------------------------------------------
+
+    def action_configurer_documents(self):
+        self.ensure_one()
+        self._verifier_gestionnaire(_("Seul un gestionnaire du hub configure Documents."))
+        assistant = self.env["hub.documents.config.wizard"].create({"dossier_id": self.id})
+        assistant._charger()
+        return {
+            "type": "ir.actions.act_window",
+            "name": _("Configurer Documents"),
+            "res_model": "hub.documents.config.wizard",
+            "res_id": assistant.id,
+            "view_mode": "form",
+            "target": "new",
+        }
+
+    def _config_documents(self, tache):
+        """Configuration Documents de la tâche, pour les outils de l'agent."""
+        self.ensure_one()
+        ligne = self.documents_dossier_ids.filtered(lambda l: l.tache == tache)[:1]
+        if not ligne:
+            raise UserError(_("Dossier %(dossier)s : aucun dossier Documents configuré pour la "
+                              "tâche (bouton « Configurer Documents »).", dossier=self.code))
+        return {
+            "dossier_id": ligne.dossier_client_id,
+            "dossier_chemin": ligne.dossier_chemin,
+            "etiquette_traite_id": self.documents_etiquette_traite_id
+            if self.documents_traitement == "etiquette" else None,
+            "dossier_traite_id": self.documents_dossier_traite_id
+            if self.documents_traitement == "dossier" else None,
+        }
+
+    # ------------------------------------------------------------------
     # Traces et OD de salaires
     # ------------------------------------------------------------------
 
@@ -263,11 +327,34 @@ class HubDossier(models.Model):
 
     def action_preparer_od_salaires(self):
         self.ensure_one()
+        assistant = self.env["hub.od.salaires.wizard"].create({
+            "dossier_id": self.id,
+            "source": "documents" if self.source_pieces == "documents" else "nextcloud",
+        })
+        assistant._charger_pieces()
         return {
             "type": "ir.actions.act_window",
             "name": _("OD de salaires"),
             "res_model": "hub.od.salaires.wizard",
+            "res_id": assistant.id,
             "view_mode": "form",
             "target": "new",
-            "context": {"default_dossier_id": self.id},
         }
+
+
+class HubDossierDocuments(models.Model):
+    """Dossier Documents de l'Odoo du client utilisé par une tâche (écrit par l'assistant)."""
+
+    _name = "hub.dossier.documents"
+    _description = "Dossier Documents par tâche"
+    _order = "dossier_id, tache"
+
+    dossier_id = fields.Many2one("hub.dossier", required=True, ondelete="cascade", index=True)
+    tache = fields.Selection([("od_salaires", "OD de salaires")], "Tâche", required=True)
+    dossier_client_id = fields.Integer("ID du dossier chez le client", required=True)
+    dossier_chemin = fields.Char("Dossier Documents", required=True)
+    alias_email = fields.Char("Alias")
+
+    _dossier_tache_uniq = models.Constraint(
+        "UNIQUE (dossier_id, tache)", "Un seul dossier Documents par tâche."
+    )

@@ -78,7 +78,8 @@
                                         groups="appalach_hub.group_hub_gestionnaire"/>
                             </div>
                         </group>
-                        <group name="fichiers" string="Fichiers">
+                        <group name="fichiers" string="Pièces">
+                            <field name="source_pieces" widget="radio"/>
                             <field name="nextcloud_path"/>
                         </group>
                     </group>
@@ -115,6 +116,32 @@
                                     <field name="compte_libelle"/>
                                 </list>
                             </field>
+                        </page>
+                        <page name="documents" string="Documents Odoo"
+                              invisible="source_pieces != 'documents'">
+                            <div class="mb-2">
+                                <button name="action_configurer_documents" type="object"
+                                        string="Configurer Documents" icon="fa-folder-open"
+                                        class="btn-secondary"
+                                        groups="appalach_hub.group_hub_gestionnaire"/>
+                                <span class="text-muted ms-2">
+                                    Dossiers et étiquettes choisis dans l'Odoo du client.
+                                </span>
+                            </div>
+                            <field name="documents_dossier_ids">
+                                <list create="0" delete="0">
+                                    <field name="tache"/>
+                                    <field name="dossier_chemin"/>
+                                    <field name="alias_email"/>
+                                </list>
+                            </field>
+                            <group>
+                                <field name="documents_traitement"/>
+                                <field name="documents_etiquette_traite_nom"
+                                       invisible="documents_traitement != 'etiquette'"/>
+                                <field name="documents_dossier_traite_nom"
+                                       invisible="documents_traitement != 'dossier'"/>
+                            </group>
                         </page>
                         <page name="equipe" string="Équipe">
                             <group>

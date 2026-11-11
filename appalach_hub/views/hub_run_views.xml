@@ -16,6 +16,8 @@
                        decoration-muted="etat == 'rejete'"/>
                 <field name="periode"/>
                 <field name="reference" optional="show"/>
+                <field name="piece_nom" optional="show"/>
+                <field name="source" optional="hide"/>
                 <field name="modele" optional="hide"/>
                 <field name="nb_etapes" optional="show"/>
                 <field name="user_id" widget="many2one_avatar_user" optional="show"/>
@@ -57,12 +59,20 @@
                         OD créée en brouillon dans l'Odoo du client, PDF joint. Elle n'est pas
                         comptabilisée. <field name="move_lien" widget="url"/>
                     </div>
+                    <div class="alert alert-warning" role="alert" invisible="not piece_avertissement">
+                        <field name="piece_avertissement"/>
+                    </div>
                     <group>
                         <group>
                             <field name="dossier_id" options="{'no_open': False}"/>
                             <field name="tache"/>
                             <field name="user_id"/>
-                            <field name="pdf_nom"/>
+                            <field name="source"/>
+                            <field name="piece_nom"/>
+                            <field name="piece_date" invisible="not piece_date"/>
+                            <field name="piece_lien" widget="url" invisible="not piece_lien"/>
+                            <field name="piece_imposee_id" invisible="not piece_imposee_id"/>
+                            <field name="piece_statut" invisible="not piece_statut"/>
                             <field name="periode_demandee" invisible="not periode_demandee"/>
                             <field name="societe_client_nom"/>
                         </group>

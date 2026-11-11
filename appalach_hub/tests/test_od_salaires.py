@@ -200,7 +200,8 @@ class TestAgentOdSalaires(HubCase):
 
         # Validation humaine : création en brouillon, PDF joint, mappings alimentés.
         run.with_user(self.comptable).action_creer_od()
-        self.assertEqual(run.etat, "od_creee")
+        self.assertEqual((run.etat, run.source, run.piece_statut), ("od_creee", "fichier", "jointe"))
+        self.assertEqual(run.piece_nom, "recap-2026-10.pdf")
         move = self.odoo.corps("account.move", "create")[0]["vals_list"][0]
         self.assertNotIn("state", move)
         self.assertEqual((move["journal_id"], move["date"], move["ref"]), (9, "2026-10-31", "Salaires 2026-10"))

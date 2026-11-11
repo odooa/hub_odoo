@@ -1,4 +1,5 @@
 from . import test_cle_api
+from . import test_documents
 from . import test_dossier_fait
 from . import test_od_salaires
 from . import test_outils_http

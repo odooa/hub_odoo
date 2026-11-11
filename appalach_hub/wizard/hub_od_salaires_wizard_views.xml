@@ -6,9 +6,16 @@
         <field name="arch" type="xml">
             <form>
                 <field name="dossier_id" invisible="1"/>
+                <field name="source_dossier" invisible="1"/>
+                <div class="alert alert-warning" role="alert" invisible="not avertissement">
+                    <field name="avertissement"/>
+                </div>
                 <group>
                     <field name="source" widget="radio"/>
                     <field name="dossier_nextcloud" invisible="source != 'nextcloud'"/>
+                    <field name="dossier_documents" invisible="source != 'documents'"/>
+                    <field name="piece_imposee_id" invisible="source != 'documents'"
+                           options="{'no_create': True, 'no_quick_create': True, 'no_create_edit': True, 'no_open': True}"/>
                     <field name="pdf" filename="pdf_nom" invisible="source != 'fichier'"
                            required="source == 'fichier'"/>
                     <field name="pdf_nom" invisible="1"/>
@@ -16,7 +23,8 @@
                     <field name="modele"/>
                 </group>
                 <p class="text-muted">
-                    L'agent lit le PDF puis, dans l'Odoo du client, les OD de salaires déjà
+                    L'agent lit la pièce (sans pièce imposée, il choisit dans le dossier
+                    Documents celle de la période) puis, dans l'Odoo du client, les OD de salaires déjà
                     encodées, le plan comptable, les journaux et les partenaires, et propose une
                     OD qui suit les habitudes du dossier. Il travaille en arrière-plan : la page
                     de l'exécution montre chaque étape (rechargez-la). Rien n'est écrit chez le
